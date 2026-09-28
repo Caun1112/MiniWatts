@@ -1171,6 +1171,7 @@ void detectUPSBattery() {
 
 int main(int argc, char** argv) { // daemon_main
     @autoreleasepool {
+        signal(SIGPIPE, SIG_IGN); // UI may exit while the independent helper still runs.
         g_jbtype = getJBType();
         if (getuid() != 0) { NSLog(@"MiniWatts charge service requires root"); return 77; }
         if (argc == 1) {
@@ -1178,7 +1179,6 @@ int main(int argc, char** argv) { // daemon_main
             g_serv_boot = (int)time(0);
             if (g_jbtype == JBTYPE_TROLLSTORE) {
                 signal(SIGHUP, SIG_IGN);
-                signal(SIGTERM, SIG_IGN); // 防止App被Kill以后daemon退出
             } else {
                 platformize_me(); // for jailbreak
                 set_mem_limit(getpid(), 80);
@@ -1201,12 +1201,20 @@ int main(int argc, char** argv) { // daemon_main
                 uninitDB();
                 [[NSClassFromString(@"LSApplicationWorkspace") defaultWorkspace] removeObserver:Service.inst];
             });
+            // launchctl bootout must run atexit restoration before removing the app.
+            signal(SIGTERM, SIG_IGN);
+            static dispatch_source_t termination;
+            termination = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, SIGTERM, 0, dispatch_get_main_queue());
+            dispatch_source_set_event_handler(termination, ^{ NSFileLog(@"graceful service shutdown"); exit(0); });
+            dispatch_resume(termination);
             [NSRunLoop.mainRunLoop run];
             NSFileLog(@"daemon unexpected");
             return 0;
         } else if (argc > 1) {
             if (0 == strcmp(argv[1], "reset")) { // 越狱下卸载前重置
                 resetBatteryStatus();
+                setThermalSimulationMode(@"off");
+                setPPMSimulationMode(@"off");
                 return 0;
             } else if (0 == strcmp(argv[1], "watch_bat_info")) {
                 BOOL slim = argc == 3;

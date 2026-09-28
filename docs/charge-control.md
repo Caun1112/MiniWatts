@@ -1,5 +1,7 @@
 # MiniWatts + ChargeLimiter
 
+> Beta 2 新增 TrollStore IPA 与 Sileo rootless DEB。请先按 [安装包说明](installers.md) 选择；以下完全未签名底包的手动签名步骤仅用于自定义签名流程。
+
 集成上游 ChargeLimiter 1.7（27d42eb1789744eee8e68cf69a806d2465bd2cd4）。
 MiniWatts 的功率、温度、配件、历史、小组件和画中画保留；新增「控制」标签。
 首次启动默认简体中文，手动选择的语言会保存。
@@ -25,7 +27,7 @@ MiniWatts 的功率、温度、配件、历史、小组件和画中画保留；�
 发布的 **MiniWatts-unsigned.ipa 是完全未签名的文件**，包括两个后台辅助程序。
 项目仍要求 iOS 17+。常规 Apple ID 签名只能提供原有监测能力，不能赋予充电控制权限。
 ChargeLimiter 原上游支持的巨魔版本范围到 iOS 17.0；本应用的最低版本是 17.0，
-因此可用系统范围是两者的交集，不能因为本应用在新系统能启动就认为限充可用。
+因此普通 TrollStore 与本应用的已知版本范围取交集。TrollStore Lite / rootless 越狱需另按其实际环境判断，不能因为本应用在新系统能启动就认为限充可用。
 
 要使用控制功能，需支持这些权限的 TrollStore / 越狱安装环境，并给主程序、
 `MiniWattsChargeDaemon`、`MiniWattsChargeHUD` 都应用发布附件

@@ -56,13 +56,22 @@ final class ChargeControlClient {
             connected = false
             config = [:]
             battery = [:]
-            message = MWHasChargePrivileges() ? "充电服务未连接，正在等待后台响应" : "需要巨魔 / 越狱及特权签名；普通自签可使用监测功能"
+            message = MWHasChargePrivileges() ? "充电服务未连接，正在等待后台响应" : "当前安装未检测到后台所需权限。巨魔 / 越狱用户请安装 Release 中的 TrollStore 版；这不代表设备没有越狱。"
             if wasConnected { DiagnosticLog.shared.record("charge", "Service disconnected: \(error.localizedDescription)") }
             if startIfNeeded && Date().timeIntervalSince(lastLaunch) > 10 {
                 lastLaunch = Date()
                 let code = MWStartChargeService()
-                DiagnosticLog.shared.record("charge", "Service launch errno=\(code); privileged=\(MWHasChargePrivileges()); connection=\(error.localizedDescription)")
-                if code != 0 && code != 1 { message = "服务启动失败（\(code)），请导出诊断日志" }
+                let launch = MWChargeLaunchDiagnostics()
+                DiagnosticLog.shared.record("charge", "Service launch errno=\(code); details=\(launch)")
+                if code == EPERM || code == EACCES {
+                    message = "系统拒绝启动后台（\(code)）。请使用内嵌权限的 TrollStore 版，并确认越狱环境已生效。"
+                } else if code == ENOTCONN {
+                    message = "DEB 后台由系统服务管理，尚未连接。请等待约 30 秒重试，或导出日志检查服务输出。"
+                } else if code == EALREADY {
+                    message = "后台进程已启动，但接口尚未就绪；请稍候或导出日志检查启动输出。"
+                } else if code != 0 {
+                    message = "服务启动失败（\(code)），请导出诊断日志查看具体阶段。"
+                }
             }
         }
     }

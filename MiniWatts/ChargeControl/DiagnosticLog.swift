@@ -54,11 +54,11 @@ final class DiagnosticLog {
         let buildCommit = Bundle.main.url(forResource: "BuildCommit", withExtension: "txt")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "unavailable"
         let report: [String: Any] = [
-            "format": "MiniWatts diagnostics v1", "exportedAt": ISO8601DateFormatter().string(from: .now),
+            "format": "MiniWatts diagnostics v2", "exportedAt": ISO8601DateFormatter().string(from: .now),
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "?",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? "?", "commit": buildCommit.trimmingCharacters(in: .whitespacesAndNewlines),
             "model": model, "iOS": UIDevice.current.systemVersion,
-            "privileged": MWHasChargePrivileges(), "userDescription": note,
+            "privileged": MWHasChargePrivileges(), "launcher": MWChargeLaunchDiagnostics(), "userDescription": note,
             "thermalState": ProcessInfo.processInfo.thermalState.rawValue,
             "logWriteError": writeError ?? "none",
             "registry": snapshot.registry, "powerSource": snapshot.powerSource ?? [:],

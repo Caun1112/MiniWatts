@@ -103,12 +103,20 @@ jobs:
             exit 1
           fi
 
+      - name: Package TrollStore IPA and rootless DEB
+        run: |
+          command -v dpkg-deb >/dev/null || brew install dpkg
+          ./scripts/package-installers.sh
+          dpkg-deb --info build/export/MiniWatts-rootless.deb
+
       - name: Upload ipa
         uses: actions/upload-artifact@v4
         with:
           name: MiniWatts-unsigned-ipa
           path: |
             build/export/MiniWatts-unsigned.ipa
+            build/export/MiniWatts-TrollStore.ipa
+            build/export/MiniWatts-rootless.deb
             scripts/ChargeControl.entitlements
           if-no-files-found: error
 
@@ -137,6 +145,8 @@ jobs:
         with:
           files: |
             build/export/MiniWatts-unsigned.ipa
+            build/export/MiniWatts-TrollStore.ipa
+            build/export/MiniWatts-rootless.deb
             build/export/apps.json
             scripts/ChargeControl.entitlements
           fail_on_unmatched_files: true
@@ -148,5 +158,5 @@ jobs:
           # anything copied in here goes stale the moment the README changes, on
           # every release already published.
           body: |
-            Unsigned MiniWatts + ChargeLimiter build. Monitoring works with ordinary signing; charge control requires a compatible TrollStore/jailbreak environment and privileged signing of the app and both helper executables. See docs/charge-control.md.
+            TrollStore / TrollStore Lite users: choose MiniWatts-TrollStore.ipa (ad-hoc entitlements, no developer certificate). Sileo rootless users: choose MiniWatts-rootless.deb. MiniWatts-unsigned.ipa has no embedded entitlements and requires your own signing pipeline. See docs/installers.md.
             ${{ github.server_url }}/${{ github.repository }}#install

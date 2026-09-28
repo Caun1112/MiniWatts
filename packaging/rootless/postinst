@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" = configure ]; then
+    mkdir -p /var/jb/var/log
+    touch /var/jb/var/log/miniwatts-charge-startup.log
+    chmod 0644 /var/jb/var/log/miniwatts-charge-startup.log
+    plist=/var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist
+    /bin/launchctl bootout system "$plist" 2>/dev/null || true
+    /bin/launchctl bootstrap system "$plist"
+    if [ -x /var/jb/usr/bin/uicache ]; then
+        /var/jb/usr/bin/uicache -p /var/jb/Applications/MiniWatts.app
+    elif command -v uicache >/dev/null 2>&1; then
+        uicache -p /var/jb/Applications/MiniWatts.app
+    fi
+fi

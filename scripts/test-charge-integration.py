@@ -54,6 +54,20 @@ class IntegrationContracts(unittest.TestCase):
             self.assertTrue(ent[key])
         self.assertNotIn('application-identifier', ent)
 
+    def test_launch_failure_regression(self):
+        bridge = (ROOT / 'MiniWatts/ChargeControl/ChargeControlBridge.m').read_text()
+        self.assertNotIn('if (!MWHasChargePrivileges()) return EPERM', bridge)
+        for field in ['persona_configuration', 'posix_spawn', 'exitCode', 'helperOutput', 'launchdOutput']:
+            self.assertIn(field, bridge)
+        diagnostics = (ROOT / 'MiniWatts/ChargeControl/DiagnosticLog.swift').read_text()
+        self.assertIn('"launcher": MWChargeLaunchDiagnostics()', diagnostics)
+        plist = plistlib.loads((ROOT / 'packaging/rootless/org.zhaohe.MiniWatts.charge.plist').read_bytes())
+        self.assertEqual(plist['UserName'], 'root')
+        self.assertEqual(plist['ProgramArguments'], ['/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon'])
+        daemon = (VENDOR / 'daemon.mm').read_text()
+        self.assertIn('DISPATCH_SOURCE_TYPE_SIGNAL, SIGTERM', daemon)
+        self.assertIn('signal(SIGPIPE, SIG_IGN)', daemon)
+
     def test_diagnostics_no_service_required(self):
         source = (ROOT / 'MiniWatts/ChargeControl/DiagnosticLog.swift').read_text()
         for marker in ['524288', 'redacted', 'Serial'.lower(), 'unavailable', 'userDescription']:

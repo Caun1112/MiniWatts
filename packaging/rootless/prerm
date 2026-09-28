@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+    remove|upgrade|deconfigure)
+        # Stop first so automatic policy cannot reapply after the reset command.
+        /bin/launchctl bootout system /var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist 2>/dev/null || true
+        helper=/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon
+        if [ -x "$helper" ]; then "$helper" reset; fi
+        if [ "${1:-}" = remove ]; then
+            if [ -x /var/jb/usr/bin/uicache ]; then
+                /var/jb/usr/bin/uicache -u /var/jb/Applications/MiniWatts.app
+            elif command -v uicache >/dev/null 2>&1; then
+                uicache -u /var/jb/Applications/MiniWatts.app
+            fi
+        fi
+        ;;
+esac
