@@ -744,9 +744,11 @@ const App = {
     mounted: function () {
         var that = this;
         this.DATA_SPAN = Math.floor(window.innerWidth / 20);
-        if (this.dark) {
-            this.switch_dark(true);
-        }
+        this.switch_dark(this.dark);
+        const palette = getComputedStyle(document.body);
+        Chart.defaults.color = palette.getPropertyValue("--mw-muted").trim() || "#8c93a6";
+        Chart.defaults.borderColor = palette.getPropertyValue("--mw-line").trim() || "rgba(140,147,166,.15)";
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, sans-serif';
         if (this.temp_mode) {
             this.temp_unit = "°F";
         } else {

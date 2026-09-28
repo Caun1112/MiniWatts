@@ -888,9 +888,7 @@ const App = {
         }
     },
     mounted: function () {
-        if (this.dark) {
-            this.switch_dark(true);
-        }
+        this.switch_dark(this.dark);
         this.reload_locale();
         this.get_conf();      
     }
