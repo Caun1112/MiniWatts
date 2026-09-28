@@ -1,16 +1,7 @@
 name: Build
 
-# Master pushes build for validation. Two things do:
-#   - a `v*` tag, which builds and publishes a GitHub release
-#   - a pull request, or a manual run, which builds and checks but publishes nothing
-#
-# The cost of dropping master builds is that a broken commit is not noticed until you
-# tag. Run this workflow by hand (Actions -> Build -> Run workflow) before tagging, or
-# just build locally with ./scripts/build-ipa.sh, which runs the same steps.
-#
-# Cutting a release is `git tag v1.2.0 && git push origin v1.2.0`, and nothing else.
-# The version comes from the tag and the build number from the commit count; the
-# project file's MARKETING_VERSION is never edited.
+# Master/PR/manual runs validate; v* tags additionally publish releases.
+# IPA compilation always happens here. No signing identity is needed.
 on:
   push:
     tags: ["v*"]
@@ -85,13 +76,16 @@ jobs:
           python3 scripts/test-charge-integration.py
           clang -fobjc-arc -framework Foundation scripts/test-charge-validation.m -o /tmp/charge-validation
           /tmp/charge-validation
+          node scripts/test-charge-preferences.js
 
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh
 
       # Nothing about the machine that produced the build may reach the artifact.
       - name: Verify the ipa carries no identifying data
-        run: ./scripts/verify-clean.sh build/export/MiniWatts-unsigned.ipa
+        run: |
+          ./scripts/verify-clean.sh build/export/MiniWatts-unsigned.ipa
+          python3 scripts/verify-charge-ipa.py build/export/MiniWatts-unsigned.ipa
 
       # The version reaches the bundle only as a build-setting override. If that ever
       # stops working, a release named v1.2.0 would quietly ship a binary saying 1.0.

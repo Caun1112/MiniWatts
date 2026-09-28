@@ -44,12 +44,14 @@ final class ChargeControlClient {
                   values["backend"] as? String == "MiniWatts.ChargeLimiter",
                   values["protocol"] as? Int == 1 else { throw ControlError.invalidResponse }
             let reading = try await request(["api": "get_bat_info"])
+            guard !Task.isCancelled else { return }
             config = values
             battery = reading["data"] as? [String: Any] ?? [:]
             if !connected { DiagnosticLog.shared.record("charge", "Service connected; sensor=\(sensorAvailable)") }
             connected = true
             message = sensorAvailable ? "后台服务已连接 · 实际状态以电池读数为准" : "服务已连接，但系统未提供电池控制接口"
         } catch {
+            guard !Task.isCancelled else { return }
             let wasConnected = connected
             connected = false
             config = [:]
