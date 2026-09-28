@@ -80,7 +80,7 @@ final class DiagnosticLog {
         if let dictionary = value as? [String: Any] {
             return dictionary.mapValues { $0 }.reduce(into: [String: Any]()) { result, pair in
                 let key = pair.key.lowercased()
-                if ["serial", "udid", "uniquechip", "uniqueidentifier", "imei", "meid", "macaddress", "bluetoothaddress", "wifiaddress", "account", "token", "password"].contains(where: key.contains) {
+                if ["serial", "udid", "uniquechip", "uniqueidentifier", "imei", "meid", "macaddress", "devicename", "bluetoothaddress", "wifiaddress", "account", "token", "password"].contains(where: key.contains) {
                     result[pair.key] = "[redacted]"
                 } else { result[pair.key] = redacted(pair.value) }
             }

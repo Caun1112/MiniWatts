@@ -8,8 +8,12 @@
 BOOL MWHasChargePrivileges(void) {
     typedef CFTypeRef (*CreateTask)(CFAllocatorRef);
     typedef CFTypeRef (*CopyEntitlement)(CFTypeRef, CFStringRef, CFErrorRef*);
-    CreateTask create = (CreateTask)dlsym(RTLD_DEFAULT, "SecTaskCreateFromSelf");
-    CopyEntitlement copy = (CopyEntitlement)dlsym(RTLD_DEFAULT, "SecTaskCopyValueForEntitlement");
+    static void* security;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ security = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY); });
+    if (!security) return NO;
+    CreateTask create = (CreateTask)dlsym(security, "SecTaskCreateFromSelf");
+    CopyEntitlement copy = (CopyEntitlement)dlsym(security, "SecTaskCopyValueForEntitlement");
     if (!create || !copy) return NO;
     CFTypeRef task = create(kCFAllocatorDefault);
     if (!task) return NO;

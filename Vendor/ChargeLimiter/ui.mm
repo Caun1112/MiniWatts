@@ -210,12 +210,12 @@ static AppDelegate* _app = nil;
                                     NSNumber* floatwnd_auto = getlocalKV(@"floatwnd_auto");
                                     if (floatwnd_auto.boolValue) {
                                         if ([white_list containsObject:cur_bid]) {
-                                            NSFileLog(@"floatwnd unhide for %@", cur_bid);
+                                            NSFileLog(@"floatwnd unhide");
                                             dispatch_async(dispatch_get_main_queue(), ^{
                                                 _app.webview.hidden = NO;
                                             });
                                         } else {
-                                            NSFileLog(@"floatwnd hide for %@", cur_bid);
+                                            NSFileLog(@"floatwnd hide");
                                             dispatch_async(dispatch_get_main_queue(), ^{
                                                 _app.webview.hidden = YES;
                                             });

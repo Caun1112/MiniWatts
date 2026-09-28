@@ -550,7 +550,7 @@ NSArray* getFrontMostBid() {
     }
     if (allFrontMostBid.count > 0) {
         if (allFrontMostBid.count > 1) {
-            NSFileLog(@"floatwnd unexpected frontmost bid %@", allFrontMostBid);
+            NSFileLog(@"floatwnd multiple foreground apps");
         }
     }
     return allFrontMostBid;

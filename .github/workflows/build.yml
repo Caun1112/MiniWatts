@@ -1,6 +1,6 @@
 name: Build
 
-# Pushing to master no longer builds. Two things do:
+# Master pushes build for validation. Two things do:
 #   - a `v*` tag, which builds and publishes a GitHub release
 #   - a pull request, or a manual run, which builds and checks but publishes nothing
 #
@@ -76,7 +76,9 @@ jobs:
       # lookup, which cannot tell which of two tags on one commit this run is for.
       - name: Take the version from the tag
         if: startsWith(github.ref, 'refs/tags/v')
-        run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "MARKETING_VERSION=${version%%-*}" >> "$GITHUB_ENV"
 
       - name: Validate charge integration
         run: |

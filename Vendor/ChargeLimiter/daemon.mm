@@ -483,6 +483,13 @@ static void onBatteryEvent(io_service_t serv) {
             return;
         }
         updateStatistics();
+        // Never interpret missing sensor data as an empty/cold battery.
+        if (![bat_info[@"CurrentCapacity"] isKindOfClass:NSNumber.class] ||
+            ![bat_info[@"IsCharging"] isKindOfClass:NSNumber.class] ||
+            ([getlocalKV(@"enable_temp") boolValue] && ![bat_info[@"Temperature"] isKindOfClass:NSNumber.class])) {
+            NSFileLog(@"skip automatic control: required battery fields unavailable");
+            return;
+        }
         if (!g_enable) {
             return;
         }
@@ -684,7 +691,7 @@ static void initConf(BOOL reset) {
     g_enable = enable.boolValue;
 }
 
-static void showFloatwnd(BOOL flag) {
+static int showFloatwnd(BOOL flag) {
     static int floatwnd_pid = -1;
     if (flag) { // open
         if (floatwnd_pid == -1) {
@@ -693,7 +700,9 @@ static void showFloatwnd(BOOL flag) {
             };
             NSString* bundlePath = [getSelfExePath() stringByDeletingLastPathComponent];
             NSString* appExePath = [bundlePath stringByAppendingPathComponent:@"MiniWattsChargeHUD"];
-            spawn(@[appExePath, @"floatwnd"], nil, nil, &floatwnd_pid, SPAWN_FLAG_NOWAIT, param);
+            int result = spawn(@[appExePath, @"floatwnd"], nil, nil, &floatwnd_pid, SPAWN_FLAG_NOWAIT, param);
+            NSFileLog(@"HUD launch result=%d pid=%d", result, floatwnd_pid);
+            if (result != 0) { floatwnd_pid = -1; return result; }
         }
     } else { // close
         if (floatwnd_pid != -1) {
@@ -701,6 +710,7 @@ static void showFloatwnd(BOOL flag) {
             floatwnd_pid = -1;
         }
     }
+    return 0;
 }
 
 NSDictionary* handleReq(NSDictionary* nsreq) {
@@ -737,8 +747,9 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         NSString* key = nsreq[@"key"];
         id val = nsreq[@"val"];
         if ([key isEqualToString:@"floatwnd"]) {
+            int result = showFloatwnd([val boolValue]);
+            if (result != 0) return @{@"status": @(result)};
             g_enable_floatwnd = [val boolValue];
-            showFloatwnd(g_enable_floatwnd);
         } else if ([key isEqualToString:@"ppm_simulate_mode"]) {
             setPPMSimulationMode(val);
         } else {

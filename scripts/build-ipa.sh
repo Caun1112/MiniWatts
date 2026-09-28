@@ -37,6 +37,7 @@ if [ -z "${MARKETING_VERSION:-}" ]; then
   tag=$(git tag --points-at HEAD --list 'v*' 2>/dev/null | sort -V | tail -1 || true)
   [ -n "$tag" ] || tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
   [ -z "$tag" ] || MARKETING_VERSION="${tag#v}"
+  MARKETING_VERSION="${MARKETING_VERSION%%-*}"
 fi
 if [ -z "${CURRENT_PROJECT_VERSION:-}" ]; then
   CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD 2>/dev/null || true)

@@ -25,7 +25,7 @@ import plistlib
 import sys
 import zipfile
 
-REPO = os.environ.get("GITHUB_REPOSITORY", "ResistanceTo/MiniWatts")
+REPO = os.environ.get("GITHUB_REPOSITORY", "Caun1112/MiniWatts")
 BUNDLE_ID = "org.zhaohe.MiniWatts"
 # Images come from master, not from the tag: they are presentation, and a release tagged
 # before an image existed would otherwise point at a file that is not there.
@@ -47,7 +47,10 @@ Picture in Picture meter. The widget and the Live Activity live in an app extens
 signing it takes one more App ID, and LiveContainer cannot run extensions, so installed \
 there MiniWatts has neither.
 
-Free and open source: https://github.com/ResistanceTo/MiniWatts"""
+Includes ChargeLimiter controls and diagnostic export. Charge control requires
+compatible TrollStore/jailbreak privileges; ordinary signing supports monitoring only.
+Combined distribution: GPLv3, with original Apache 2.0 notices preserved.
+Source: https://github.com/Caun1112/MiniWatts"""
 
 
 def fail(message):
@@ -84,7 +87,7 @@ def main():
     version = info["CFBundleShortVersionString"]
     if info["CFBundleIdentifier"] != BUNDLE_ID:
         fail(f"bundle identifier is {info['CFBundleIdentifier']}, expected {BUNDLE_ID}")
-    if tag != f"v{version}":
+    if tag.split("-", 1)[0] != f"v{version}":
         fail(f"the ipa reports version {version} but the tag is {tag}")
 
     release = f"https://github.com/{REPO}/releases/tag/{tag}"

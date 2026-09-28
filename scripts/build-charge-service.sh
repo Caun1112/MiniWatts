@@ -15,10 +15,11 @@ for source in "$WEB"/{Core,Requests,Responses}/*.m; do
   xcrun --sdk iphoneos clang "${FLAGS[@]}" -c "$source" -o "$obj"
   OBJS+=("$obj")
 done
-LIBS=(-framework Foundation -framework UIKit -framework CoreFoundation -framework CFNetwork -framework MobileCoreServices -framework UserNotifications -framework JavaScriptCore -lsqlite3 -lz "$VENDOR/IOKit.tbd" "$VENDOR/BackBoardServices.tbd" "$VENDOR/GraphicsServices.tbd" -Wl,-no_adhoc_codesign)
+LIBS=(-framework Foundation -framework UIKit -framework CoreGraphics -framework CoreFoundation -framework CFNetwork -framework MobileCoreServices -framework UserNotifications -framework JavaScriptCore -lsqlite3 -lz "$VENDOR/IOKit.tbd" "$VENDOR/BackBoardServices.tbd" "$VENDOR/GraphicsServices.tbd" -Wl,-no_adhoc_codesign)
 xcrun --sdk iphoneos clang++ "${FLAGS[@]}" -std=c++17 "$VENDOR/daemon.mm" "$VENDOR/utils.mm" "${OBJS[@]}" "${LIBS[@]}" -o "$APP/MiniWattsChargeDaemon"
 xcrun --sdk iphoneos clang++ "${FLAGS[@]}" -std=c++17 "$VENDOR/ui.mm" "$VENDOR/utils.mm" "${LIBS[@]}" -o "$APP/MiniWattsChargeHUD"
 xcrun strip -S -x "$APP/MiniWattsChargeDaemon" "$APP/MiniWattsChargeHUD"
 cp -R "$VENDOR/www" "$APP/www"
+rm -f "$APP/www/test.json"
 cp -R LICENSES "$APP/ThirdPartyLicenses"
 printf '%s\n' "$(git rev-parse HEAD)" > "$APP/BuildCommit.txt"
