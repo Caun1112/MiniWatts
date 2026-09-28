@@ -38,6 +38,14 @@ class IntegrationContracts(unittest.TestCase):
         self.assertNotIn('/var/root/aldente.', (VENDOR / 'common.h').read_text())
         self.assertIn('dispatch_sync(dispatch_get_main_queue()', (VENDOR / 'daemon.mm').read_text())
 
+    def test_default_language_is_simplified_chinese(self):
+        self.assertIn('@"lang": @"zh_CN"', (VENDOR / 'daemon.mm').read_text())
+        util = (VENDOR / 'www/js/utils.js').read_text()
+        self.assertIn('lang = "zh_CN"', util)
+        self.assertIn('get_local_val("conf", "lang")', util)
+        languages = json.loads((VENDOR / 'www/lang.json').read_text())
+        self.assertIn('zh_CN', languages)
+
     def test_privileges_and_url_registration(self):
         info = plistlib.loads((ROOT / 'MiniWatts/Info.plist').read_bytes())
         self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['miniwatts', 'cl'])

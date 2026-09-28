@@ -670,7 +670,7 @@ static void initConf(BOOL reset) {
             @"disable_smart_charge": @YES, // Disable "Optimized Battery Charging" within Settings app
             @"mode": @"charge_on_plug",
             @"update_freq": @1,
-            @"lang": @"en",
+            @"lang": @"zh_CN",
             @"floatwnd_auto": @NO,
         }];
         for (NSString* key in def_mdic) {

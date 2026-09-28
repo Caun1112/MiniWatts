@@ -21,22 +21,13 @@ function get_local_val(path, key, defval) {
         return defval;
     }
     var val = JSON.parse(data)[key];
-    return val?val:defval;
+    return (val === undefined || val === null) ? defval : val;
 }
 
 function get_local_lang() {
     var lang = get_local_val("conf", "lang");
     if (!lang) {
-        var sp = navigator.language.split("-");
-        if (sp[0] == "zh") {
-            if (sp[1] == "TW") {
-                lang = "zh_TW";
-            } else {
-                lang = "zh_CN";
-            }
-        } else {
-            lang = sp[0];
-        }
+        lang = "zh_CN";
         set_local_val("conf", "lang", lang);
     }
     return lang;

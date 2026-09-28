@@ -30,3 +30,5 @@ canvas { border-radius:12px; }
 .el-row { line-height:1.65; }
 #page_header .fa-safari { display:none!important; }
 .mw-offline { padding:14px 16px; margin:12px 16px; border-radius:14px; color:var(--mw-text); background:var(--mw-card); border:1px solid var(--mw-line); }
+
+body.day { --mw-bg:#eef1f6; --mw-top:#f7f9fc; --mw-card:#fff; --mw-text:#161a22; --mw-muted:#60687a; --mw-accent:#0086b3; --mw-green:#0e9b57; --mw-line:rgba(10,10,10,.08); --mw-input:#f7f9fc; }

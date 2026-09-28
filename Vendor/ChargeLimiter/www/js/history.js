@@ -62,7 +62,7 @@ const App = {
         return {
             DATA_SPAN: 0,
             DATA_MOVE_SPAN: 3,
-            dark: get_local_val("conf", "dark", false),
+            dark: get_local_val("conf", "dark", window.matchMedia("(prefers-color-scheme: dark)").matches),
             temp_mode: get_local_val("conf", "temp_mode", false),
             min5: [],
             min5_indx: 0,
@@ -737,7 +737,7 @@ const App = {
             if (flag) {
                 $("body").attr("class", "night");
             } else {
-                $("body").removeAttr("class", "night");
+                $("body").attr("class", "day");
             }
         },
     },

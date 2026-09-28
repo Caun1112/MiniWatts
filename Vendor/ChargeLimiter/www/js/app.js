@@ -159,7 +159,7 @@ const App = {
             enable: false,
             ver: "?",
             update_freq: 1,
-            dark: get_local_val("conf", "dark", false),
+            dark: get_local_val("conf", "dark", window.matchMedia("(prefers-color-scheme: dark)").matches),
             lang: get_local_val("conf", "lang", "en"),
             sysver: "",
             devmodel: "",
@@ -845,7 +845,7 @@ const App = {
             if (flag) {
                 $("body").attr("class", "night");
             } else {
-                $("body").removeAttr("class", "night");
+                $("body").attr("class", "day");
             }
         },
         reload_locale: function() {
