@@ -77,6 +77,7 @@ jobs:
           clang -fobjc-arc -framework Foundation scripts/test-charge-validation.m -o /tmp/charge-validation
           /tmp/charge-validation
           node scripts/test-charge-preferences.js
+          python3 scripts/test-charge-launcher.py
 
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh
