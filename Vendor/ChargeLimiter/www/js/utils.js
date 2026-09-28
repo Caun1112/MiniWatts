@@ -167,3 +167,10 @@ $(document).ajaxError(function(_event, xhr, settings) {
         }
     }
 });
+
+// Browser fallback; the in-app bridge replaces this after loading.
+function set_pb(text) {
+    var node = document.createElement("textarea");
+    node.value = text; document.body.appendChild(node);
+    node.select(); document.execCommand("copy"); node.remove();
+}

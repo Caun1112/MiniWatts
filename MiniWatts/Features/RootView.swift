@@ -51,6 +51,14 @@ struct RootView: View {
                 widgets.publish(reading, lastSession: monitor.sessions.first)
             }
         }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            let control = ChargeControlClient.shared
+            while !Task.isCancelled {
+                if !control.busy { await control.refresh() }
+                do { try await Task.sleep(for: .seconds(3)) } catch { break }
+            }
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in
             DiagnosticLog.shared.record("lifecycle", String(describing: phase))
             switch phase {

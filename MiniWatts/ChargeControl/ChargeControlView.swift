@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ChargeControlView: View {
     @State private var client = ChargeControlClient.shared
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         PageScaffold("充电控制", glow: .mwBattery) {
@@ -31,13 +30,6 @@ struct ChargeControlView: View {
                     Link("ChargeLimiter 开源项目 · GPLv3", destination: URL(string: "https://github.com/lich4/ChargeLimiter")!)
                         .font(.caption)
                 }
-            }
-        }
-        .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
-            while !Task.isCancelled {
-                if !client.busy { await client.refresh() }
-                do { try await Task.sleep(for: .seconds(3)) } catch { break }
             }
         }
     }

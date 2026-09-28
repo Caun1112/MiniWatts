@@ -122,7 +122,9 @@ int spawn(NSArray* args, NSString** stdOut, NSString** stdErr, pid_t* pidPtr, in
     if (param != nil) {
         if (param[@"cwd"] != nil) {
             NSString* path = param[@"cwd"];
-            posix_spawn_file_actions_addchdir_np(&action, path.UTF8String);
+            typedef int (*AddChdir)(posix_spawn_file_actions_t*, const char*);
+            AddChdir addChdir = (AddChdir)dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir_np");
+            if (addChdir) addChdir(&action, path.UTF8String);
         }
         if (param[@"close"] != nil) {
             NSArray* closes_fds = param[@"close"];

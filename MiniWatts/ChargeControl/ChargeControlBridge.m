@@ -78,6 +78,7 @@ int MWStartChargeService(void) {
 }
 - (void)stop { [self.web stopLoading]; self.web.delegate = nil; [self.web loadHTMLString:@"" baseURL:nil]; }
 - (void)webViewDidFinishLoad:(UIWebView*)webView {
+    [webView stringByEvaluatingJavaScriptFromString:@"window.set_pb=function(s){location.href='miniwatts-copy://text?value='+encodeURIComponent(s);};window.onerror=function(m,u,l){location.href='miniwatts-log://error?value='+encodeURIComponent(m+' line='+l);};"];
     if (self.eventHandler) self.eventHandler(@"control page loaded");
 }
 - (void)webView:(UIWebView*)webView didFailLoadWithError:(NSError*)error {
@@ -85,6 +86,14 @@ int MWStartChargeService(void) {
 }
 - (BOOL)webView:(UIWebView*)webView shouldStartLoadWithRequest:(NSURLRequest*)request navigationType:(UIWebViewNavigationType)type {
     NSURL* url = request.URL;
+    if ([@[@"miniwatts-copy", @"miniwatts-log"] containsObject:url.scheme]) {
+        NSURLComponents* parts = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+        for (NSURLQueryItem* item in parts.queryItems) if ([item.name isEqual:@"value"]) {
+            if ([url.scheme isEqual:@"miniwatts-copy"]) UIPasteboard.generalPasteboard.string = item.value;
+            else if (self.eventHandler) self.eventHandler(item.value ?: @"web error");
+        }
+        return NO;
+    }
     if ([url.scheme isEqual:@"about"]) return YES;
     if ([url.host isEqual:@"127.0.0.1"] && url.port.intValue == 1231 && [url.scheme isEqual:@"http"]) return YES;
     if (type == UIWebViewNavigationTypeLinkClicked && [@[@"https", @"http"] containsObject:url.scheme]) {

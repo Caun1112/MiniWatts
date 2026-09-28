@@ -26,7 +26,6 @@ struct MiniWattsApp: App {
                 .environment(monitor)
                 .environment(floatingMeter)
                 .onOpenURL { url in Task { await ChargeControlClient.shared.handle(url) } }
-                .task { await ChargeControlClient.shared.refresh() }
         }
     }
 }

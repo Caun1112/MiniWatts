@@ -99,6 +99,7 @@
     }
   </style>
 <link rel="stylesheet" href="css/miniwatts.css">
+<style>html,body{background:transparent!important;padding:0!important}#app{background:var(--mw-card)!important;border:1px solid var(--mw-line);opacity:.92;color:var(--mw-text)!important}.el-row{line-height:1!important}</style>
 </head>
 <body>
   <div id="app" >
@@ -107,7 +108,7 @@
         <el-row>
           <i class="fa fa-toggle-on icon toggle-on" v-if="enable"></i>
           <i class="fa fa-toggle-off icon toggle-off" v-else></i>
-          <span class="text">{{"CL v"+ver}}</span>
+          <span class="text">{{"MW v"+ver}}</span>
         </el-row>
         <el-row>
           <i class="fa fa-battery-0 icon battery" v-if="bat_info.CurrentCapacity<5"></i>
@@ -129,7 +130,7 @@
         </el-row>
         <el-row v-else-if="phase==1">
           <i class="fa fa-bolt icon amperge" v-if="bat_info.IsCharging"></i>
-          <span class="text">{{bat_info.InstantAmperage + "mAh"}}</span>
+          <span class="text">{{bat_info.InstantAmperage + "mA"}}</span>
         </el-row>
       </div>
       <div v-else>
