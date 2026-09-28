@@ -58,3 +58,5 @@ chmod 0644 "$STAGE/var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plis
 command -v dpkg-deb >/dev/null || { echo 'dpkg-deb is required on the Actions runner' >&2; exit 1; }
 dpkg-deb --root-owner-group -Zgzip -b "$STAGE" "$PWD/build/export/MiniWatts-rootless.deb"
 python3 scripts/verify-installers.py "$APP" "$STAGE"
+
+python3 scripts/verify-rootless-deb.py "$PWD/build/export/MiniWatts-rootless.deb"
