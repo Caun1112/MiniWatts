@@ -1,5 +1,11 @@
 # MiniWatts
 
+> **MiniWatts + ChargeLimiter 集成版**：新增完整充电控制、独立后台服务和 Bug 日志导出。
+> 未签名 IPA 在本仓库 [Releases](https://github.com/Caun1112/MiniWatts/releases) 下载。
+> 充电控制需要兼容的巨魔 / 越狱权限，普通自签只支持监测。安装、功能和测试说明见
+> [充电控制文档](docs/charge-control.md)。组合发行版为 GPLv3；原 MiniWatts Apache 声明保留。
+> 以下为原 MiniWatts 监测功能说明，其“无网络/只读容器”等描述不适用于新增特权后台；后台仅使用本机回环 HTTP。
+
 **English** · [简体中文](README.zh-Hans.md)
 
 [![Build](https://github.com/ResistanceTo/MiniWatts/actions/workflows/build.yml/badge.svg)](https://github.com/ResistanceTo/MiniWatts/actions/workflows/build.yml)

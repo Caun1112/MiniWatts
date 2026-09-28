@@ -96,6 +96,8 @@ if [ "$MODE" = "unsigned" ]; then
   APP="$DERIVED/Build/Products/Release-iphoneos/$SCHEME.app"
   [ -d "$APP" ] || { echo "no .app at $APP" >&2; exit 1; }
 
+  ./scripts/build-charge-service.sh "$APP"
+
   # An .ipa is a zip with the bundle inside a Payload directory. Nothing else is
   # required, and nothing else is included.
   echo "==> Packaging"

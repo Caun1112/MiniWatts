@@ -9,6 +9,7 @@ struct MiniWattsApp: App {
     @State private var floatingMeter = FloatingMeterController()
 
     init() {
+        _ = DiagnosticLog.shared
         let monitor = PowerMonitor()
         _monitor = State(initialValue: monitor)
         // The Shortcuts action runs in this process — launched in the background, with
@@ -24,6 +25,8 @@ struct MiniWattsApp: App {
             RootView()
                 .environment(monitor)
                 .environment(floatingMeter)
+                .onOpenURL { url in Task { await ChargeControlClient.shared.handle(url) } }
+                .task { await ChargeControlClient.shared.refresh() }
         }
     }
 }

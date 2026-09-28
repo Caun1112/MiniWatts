@@ -24,6 +24,11 @@ struct SettingsView: View {
                         devicePanel
                         aboutPanel
                         rawDataLink
+                        NavigationLink { DiagnosticsView() } label: {
+                            Panel("Bug 日志", systemImage: "doc.text.magnifyingglass") {
+                                Label("导出诊断报告", systemImage: "square.and.arrow.up")
+                            }
+                        }.buttonStyle(.plain)
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
@@ -288,7 +293,7 @@ struct SettingsView: View {
 
     /// Where the source lives. Kept as a constant rather than built inline: a typo in
     /// a string literal would only show up as a force-unwrap crash on this screen.
-    private static let repository = URL(string: "https://github.com/ResistanceTo/MiniWatts")!
+    private static let repository = URL(string: "https://github.com/Caun1112/MiniWatts")!
 
     private var aboutPanel: some View {
         Panel("About", systemImage: "info.circle") {
@@ -301,7 +306,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Free and open source")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Apache 2.0 licence. The whole app, widget included, is on GitHub.")
+                        Text("This combined build is distributed under GPLv3; original MiniWatts code retains its Apache 2.0 notices. Source is on GitHub.")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -309,7 +314,7 @@ struct SettingsView: View {
                 }
                 Link(destination: Self.repository) {
                     HStack(spacing: 8) {
-                        Text(verbatim: "github.com/ResistanceTo/MiniWatts")
+                        Text(verbatim: "github.com/Caun1112/MiniWatts")
                             .mwMono(size: 12, weight: .medium)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
@@ -326,7 +331,7 @@ struct SettingsView: View {
                     )
                 }
                 .padding(.bottom, 4)
-                Text("MiniWatts reads the phone's own power management sensors through private frameworks — IOKit, IOHIDEventSystemClient and BatteryCenter. Nothing leaves the device and nothing is written outside the app's own container.")
+                Text("MiniWatts reads the phone's own power management sensors through private frameworks — IOKit, IOHIDEventSystemClient and BatteryCenter. Charge control uses a privileged local service and stores its settings and history on this device. Diagnostic reports are shared only when you export them.")
                     .font(.caption)
                     .foregroundStyle(Color.mwMuted)
                     .fixedSize(horizontal: false, vertical: true)

@@ -47,3 +47,13 @@ interface rather than guesswork, and two details of loading BatteryCenter from
 a sandboxed app — using NSBundle rather than dlopen, and prefixing the path
 with DYLD_ROOT_PATH so the same code works in the simulator — were learned
 from reading Batsie. No source from that project is reproduced here.
+
+
+ChargeLimiter integration (2026)
+This combined distribution is GPL-3.0; original MiniWatts source retains its
+Apache-2.0 copyright/license notices, preserved in LICENSES/MiniWatts-Apache-2.0.txt.
+ChargeLimiter by lich4: https://github.com/lich4/ChargeLimiter
+Revision 27d42eb1789744eee8e68cf69a806d2465bd2cd4, GPL-3.0 (LICENSE).
+GCDWebServer by Pierre-Olivier Latour: https://github.com/swisspol/GCDWebServer
+Revision 1c36bf07c848476111d523057a3a63b05328ce2a, BSD (LICENSES).
+Bundled upstream frontend libraries retain their embedded notices.

@@ -12,6 +12,8 @@ struct RootView: View {
         TabView {
             TabPage { DashboardView() }
                 .tabItem { Label("Power", systemImage: "bolt.fill") }
+            TabPage { ChargeControlView() }
+                .tabItem { Label("控制", systemImage: "bolt.shield.fill") }
             TabPage { ThermalView() }
                 .tabItem { Label("Thermal", systemImage: "thermometer.medium") }
             TabPage { AdapterView() }
@@ -38,6 +40,7 @@ struct RootView: View {
             // exactly where the floating meter earns its keep. Each consumer
             // throttles itself; this only hands over the reading.
             monitor.onTick = { [liveActivity, widgets, floatingMeter] snapshot in
+                DiagnosticLog.shared.sample(snapshot)
                 let reading = ChargeReading(snapshot)
                 floatingMeter.render(snapshot: snapshot,
                                      thermalState: monitor.thermal.state)
@@ -49,6 +52,7 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in
+            DiagnosticLog.shared.record("lifecycle", String(describing: phase))
             switch phase {
             case .active:
                 monitor.start()

@@ -14,6 +14,7 @@ name: Build
 on:
   push:
     tags: ["v*"]
+    branches: ["master"]
   pull_request:
   workflow_dispatch:
 
@@ -77,6 +78,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      - name: Validate charge integration
+        run: python3 scripts/test-charge-integration.py
+
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh
 
@@ -104,7 +108,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MiniWatts-unsigned-ipa
-          path: build/export/MiniWatts-unsigned.ipa
+          path: |
+            build/export/MiniWatts-unsigned.ipa
+            scripts/ChargeControl.entitlements
           if-no-files-found: error
 
       # Kept separately: the ipa is stripped, so a crash report needs this to
@@ -133,6 +139,7 @@ jobs:
           files: |
             build/export/MiniWatts-unsigned.ipa
             build/export/apps.json
+            scripts/ChargeControl.entitlements
           fail_on_unmatched_files: true
           generate_release_notes: true
           # A tag with a hyphen in it — v1.1.0-beta1 — publishes as a pre-release.
@@ -142,5 +149,5 @@ jobs:
           # anything copied in here goes stale the moment the README changes, on
           # every release already published.
           body: |
-            Unsigned build — sign it with your own Apple ID before installing.
+            Unsigned MiniWatts + ChargeLimiter build. Monitoring works with ordinary signing; charge control requires a compatible TrollStore/jailbreak environment and privileged signing of the app and both helper executables. See docs/charge-control.md.
             ${{ github.server_url }}/${{ github.repository }}#install
