@@ -727,7 +727,7 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
             kv[@"ver"] = getAppVer() ?: @"unknown";
             kv[@"backend"] = @"MiniWatts.ChargeLimiter";
             kv[@"protocol"] = @1;
-            kv[@"sensor_available"] = @(getIOPMPSServ() != IO_OBJECT_NULL);
+            kv[@"sensor_available"] = @([bat_info[@"CurrentCapacity"] isKindOfClass:NSNumber.class] && [bat_info[@"IsCharging"] isKindOfClass:NSNumber.class]);
             kv[@"serv_boot"] = @(g_serv_boot);
             kv[@"sys_boot"] = @(get_sys_boottime());
             kv[@"thermal_simulate_mode"] = getThermalSimulationMode();
