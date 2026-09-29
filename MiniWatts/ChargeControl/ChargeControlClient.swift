@@ -11,6 +11,7 @@ final class ChargeControlClient {
     private(set) var busy = false
     private(set) var message = "尚未连接充电服务"
     private var lastLaunch = Date.distantPast
+    private var lastLaunchMessage: String?
     private let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 3
@@ -49,6 +50,7 @@ final class ChargeControlClient {
             battery = reading["data"] as? [String: Any] ?? [:]
             if !connected { DiagnosticLog.shared.record("charge", "Service connected; sensor=\(sensorAvailable)") }
             connected = true
+            lastLaunchMessage = nil
             message = sensorAvailable ? "后台服务已连接 · 实际状态以电池读数为准" : "服务已连接，但系统未提供电池控制接口"
         } catch {
             guard !Task.isCancelled else { return }
@@ -56,7 +58,7 @@ final class ChargeControlClient {
             connected = false
             config = [:]
             battery = [:]
-            message = MWHasChargePrivileges() ? "充电服务未连接，正在等待后台响应" : "当前安装未检测到后台所需权限。巨魔 / 越狱用户请安装 Release 中的 TrollStore 版；这不代表设备没有越狱。"
+            message = lastLaunchMessage ?? (MWHasChargePrivileges() ? "充电服务未连接，正在等待后台响应" : "当前安装未检测到后台所需权限。巨魔 / 越狱用户请安装 Release 中的 TrollStore 版；这不代表设备没有越狱。")
             if wasConnected { DiagnosticLog.shared.record("charge", "Service disconnected: \(error.localizedDescription)") }
             if startIfNeeded && Date().timeIntervalSince(lastLaunch) > 10 {
                 lastLaunch = Date()
@@ -64,14 +66,15 @@ final class ChargeControlClient {
                 let launch = MWChargeLaunchDiagnostics()
                 DiagnosticLog.shared.record("charge", "Service launch errno=\(code); details=\(launch)")
                 if code == EPERM || code == EACCES {
-                    message = "系统拒绝启动后台（\(code)）。请使用内嵌权限的 TrollStore 版，并确认越狱环境已生效。"
-                } else if code == ENOTCONN {
-                    message = "DEB 后台由系统服务管理，尚未连接。请等待约 30 秒重试，或导出日志检查服务输出。"
+                    message = "系统拒绝启动后台（\(code)）。请确认越狱环境已生效，并导出日志查看启动阶段与权限。"
                 } else if code == EALREADY {
                     message = "后台进程已启动，但接口尚未就绪；请稍候或导出日志检查启动输出。"
                 } else if code != 0 {
                     message = "服务启动失败（\(code)），请导出诊断日志查看具体阶段。"
+                } else {
+                    message = "已尝试启动后台，正在等待接口响应。若仍未连接，请导出日志查看进程退出原因。"
                 }
+                lastLaunchMessage = message
             }
         }
     }

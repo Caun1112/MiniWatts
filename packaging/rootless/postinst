@@ -1,15 +1,46 @@
 #!/bin/sh
 set -eu
-if [ "${1:-}" = configure ]; then
+case "${1:-}" in
+ configure|abort-upgrade|abort-remove|abort-deconfigure)
     mkdir -p /var/jb/var/log
+    log=/var/jb/var/log/miniwatts-charge-install.log
+    : > "$log"
+    chmod 0644 "$log"
     touch /var/jb/var/log/miniwatts-charge-startup.log
     chmod 0644 /var/jb/var/log/miniwatts-charge-startup.log
+    ctl=/bin/launchctl
+    for candidate in /var/jb/bin/launchctl /var/jb/usr/bin/launchctl; do
+        if [ -x "$candidate" ]; then ctl=$candidate; break; fi
+    done
     plist=/var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist
-    /bin/launchctl bootout system "$plist" 2>/dev/null || true
-    /bin/launchctl bootstrap system "$plist"
+    helper=/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon
+    {
+        echo "MiniWatts installation: $(date -u), launchctl=$ctl"
+        "$ctl" bootout system "$plist" || true
+        "$helper" stop || true
+        "$ctl" enable system/org.zhaohe.MiniWatts.charge || true
+        if "$ctl" bootstrap system "$plist"; then
+            echo 'bootstrap accepted'
+        else
+            echo "bootstrap failed: $? (will try an already registered job)"
+        fi
+        "$ctl" kickstart system/org.zhaohe.MiniWatts.charge || true
+        "$ctl" print system/org.zhaohe.MiniWatts.charge || true
+        ready=0
+        for attempt in 1 2 3 4 5; do
+            if "$helper" health; then ready=1; break; fi
+            sleep 1
+        done
+        echo "listener_ready=$ready"
+        if [ "$ready" = 0 ]; then
+            echo 'Service is not listening yet. Open MiniWatts for direct recovery and export diagnostics if needed.'
+        fi
+    } >> "$log" 2>&1
+    cat "$log"
     if [ -x /var/jb/usr/bin/uicache ]; then
         /var/jb/usr/bin/uicache -p /var/jb/Applications/MiniWatts.app
     elif command -v uicache >/dev/null 2>&1; then
         uicache -p /var/jb/Applications/MiniWatts.app
     fi
-fi
+    ;;
+esac

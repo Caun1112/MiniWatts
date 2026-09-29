@@ -8,7 +8,7 @@ OUT="$PWD/build/charge-service"
 mkdir -p "$OUT" "$APP"
 VENDOR="$PWD/Vendor/ChargeLimiter"
 WEB="$PWD/Vendor/GCDWebServer"
-FLAGS=(-arch arm64 -isysroot "$SDK" -miphoneos-version-min=17.0 -fobjc-arc -fblocks -Os -DNDEBUG=1 -DGCDWEBSERVER_ENABLE_BACKGROUND_MODE=0 -Wno-deprecated-declarations -ffile-prefix-map="$PWD"=/MiniWatts -I"$VENDOR" -I"$WEB/Core" -I"$WEB/Requests" -I"$WEB/Responses")
+FLAGS=(-arch arm64 -isysroot "$SDK" -miphoneos-version-min=17.0 -fobjc-arc -fblocks -Os -DNDEBUG=1 -Wno-deprecated-declarations -ffile-prefix-map="$PWD"=/MiniWatts -I"$VENDOR" -I"$WEB/Core" -I"$WEB/Requests" -I"$WEB/Responses")
 OBJS=()
 for source in "$WEB"/{Core,Requests,Responses}/*.m; do
   obj="$OUT/$(basename "$source").o"

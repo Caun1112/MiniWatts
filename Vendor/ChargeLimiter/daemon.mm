@@ -6,6 +6,7 @@
 #import <UserNotifications/UserNotifications.h>
 
 #include "utils.h"
+#include "ServiceLock.h"
 
 #define kHIDPage_PowerDevice                    0x84
 #define kHIDUsage_PD_PeripheralDevice           0x06
@@ -1140,18 +1141,28 @@ void detectUPSBattery() {
         NSDictionary* options = @{
             @"Port": @(GSERV_PORT),
             @"BindToLocalhost": @YES,
+            @"AutomaticallySuspendInBackground": @NO,
         };
-        BOOL status = [_webServer startWithOptions:options error:nil];
+        NSError* serverError = nil;
+        NSLog(@"MiniWatts startup: opening loopback port %d", GSERV_PORT);
+        BOOL status = [_webServer startWithOptions:options error:&serverError];
         if (!status) {
-            NSLog(@"%@ serve failed, exit", log_prefix);
+            NSLog(@"%@ serve failed: %@", log_prefix, serverError);
             exit(0);
         }
         getBatInfo(&bat_info);
+        NSLog(@"MiniWatts startup: HTTP listening, configuring battery notifications");
         gNotifyPort = IONotificationPortCreate(kIOMasterPortDefault);
-        CFRunLoopSourceRef runSrc = IONotificationPortGetRunLoopSource(gNotifyPort);
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runSrc, kCFRunLoopDefaultMode);
+        CFRunLoopSourceRef runSrc = gNotifyPort ? IONotificationPortGetRunLoopSource(gNotifyPort) : NULL;
+        if (runSrc) CFRunLoopAddSource(CFRunLoopGetCurrent(), runSrc, kCFRunLoopDefaultMode);
+        else {
+            NSLog(@"MiniWatts startup: battery notification source unavailable; using 20s polling");
+            [NSTimer scheduledTimerWithTimeInterval:20 repeats:YES block:^(NSTimer* timer) {
+                onBatteryEvent(getIOPMPSServ());
+            }];
+        }
         io_service_t serv = getIOPMPSServ();
-        if (serv != IO_OBJECT_NULL) {
+        if (serv != IO_OBJECT_NULL && runSrc) {
             IOServiceAddInterestNotification(gNotifyPort, serv, "IOGeneralInterest", [](void* refcon, io_service_t service, uint32_t type, void* args) { // type == kIOPMMessageBatteryStatusHasChanged
                 @synchronized (Service.inst) {
                     detectUPSBattery(); // 在USB插拔事件中更新
@@ -1161,29 +1172,59 @@ void detectUPSBattery() {
             detectUPSBattery();
         }
         [[NSClassFromString(@"LSApplicationWorkspace") defaultWorkspace] addObserver:self];
-        isBlueEnable(); // init
-        isLPMEnable();
-        isSmartChargeEnable();
+        // Optional Bluetooth / low-power / optimized-charge clients initialize
+        // lazily when requested. An unavailable XPC service must not block startup.
     }
 }
 @end
 
 
+extern "C" int proc_pidinfo(int pid, int flavor, uint64_t arg, void* buffer, int buffersize);
+
+static int stopChargeService() {
+    int fd = open("/var/root/miniwatts-charge.lock", O_RDWR | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) return errno == ENOENT ? 0 : errno;
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0) { close(fd); return 0; }
+    if (errno != EWOULDBLOCK && errno != EAGAIN) { int e = errno; close(fd); return e; }
+    char text[32] = {0};
+    ssize_t count = pread(fd, text, sizeof(text)-1, 0);
+    pid_t pid = count > 0 ? (pid_t)strtol(text, NULL, 10) : 0;
+    // Verify the lock holder's executable before signalling; never signal a PID
+    // solely on the basis of an old file's contents.
+    char path[4096] = {0};
+    if (pid <= 1 || proc_pidinfo(pid, 11, 0, path, sizeof(path)) <= 0 ||
+        ![[NSString stringWithUTF8String:path] hasSuffix:@"/MiniWattsChargeDaemon"]) { close(fd); return ESRCH; }
+    if (kill(pid, SIGTERM) != 0) { int e = errno; close(fd); return e; }
+    for (int i = 0; i < 50; i++) {
+        if (flock(fd, LOCK_EX | LOCK_NB) == 0) { close(fd); return 0; }
+        usleep(100000);
+    }
+    close(fd);
+    return ETIMEDOUT;
+}
+
 int main(int argc, char** argv) { // daemon_main
     @autoreleasepool {
         signal(SIGPIPE, SIG_IGN); // UI may exit while the independent helper still runs.
+        NSLog(@"MiniWatts startup: entered main uid=%d euid=%d", getuid(), geteuid());
         g_jbtype = getJBType();
         if (getuid() != 0) { NSLog(@"MiniWatts charge service requires root"); return 77; }
         if (argc == 1) {
+            static int serviceLock = acquireServiceLock("/var/root/miniwatts-charge.lock");
+            if (serviceLock < 0) { NSLog(@"MiniWatts startup: single-instance lock errno=%d", errno); return 75; }
             NSFileLog(@"CLv%@ start pid=%d", NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"], getpid());
             g_serv_boot = (int)time(0);
             if (g_jbtype == JBTYPE_TROLLSTORE) {
                 signal(SIGHUP, SIG_IGN);
             } else {
+                NSLog(@"MiniWatts startup: configuring jailbreak process");
                 platformize_me(); // for jailbreak
-                set_mem_limit(getpid(), 80);
+                int memoryResult = set_mem_limit(getpid(), 80);
+                NSLog(@"MiniWatts startup: memory limit result=%d", memoryResult);
             }
+            NSLog(@"MiniWatts startup: initializing service");
             [Service.inst serve];
+            NSLog(@"MiniWatts startup: initialization complete, entering run loop");
             atexit_b(^{
                 performAcccharge(NO);
                 setThermalSimulationMode(@"off");
@@ -1211,6 +1252,8 @@ int main(int argc, char** argv) { // daemon_main
             NSFileLog(@"daemon unexpected");
             return 0;
         } else if (argc > 1) {
+            if (0 == strcmp(argv[1], "stop")) return stopChargeService();
+            if (0 == strcmp(argv[1], "health")) return localPortOpen(GSERV_PORT) ? 0 : 1;
             if (0 == strcmp(argv[1], "reset")) { // 越狱下卸载前重置
                 resetBatteryStatus();
                 setThermalSimulationMode(@"off");

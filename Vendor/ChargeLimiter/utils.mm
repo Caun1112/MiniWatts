@@ -46,20 +46,19 @@ extern "C" {
 int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void* buffer, size_t buffersize);
 }
 int32_t get_mem_limit(int pid) {
-    int rc = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, 0, 0);
-    if (rc < 1) {
-        return -1;
-    }
-    struct memorystatus_priority_entry* buf = (struct memorystatus_priority_entry*)malloc(rc);
-    rc = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, buf, rc);
+    int capacity = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, NULL, 0);
+    if (capacity <= 0 || capacity > 1024 * 1024) return -1;
+    memorystatus_priority_entry_t* entries = (memorystatus_priority_entry_t*)calloc(1, (size_t)capacity);
+    if (!entries) return -1;
+    int bytes = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, entries, (size_t)capacity);
     int32_t limit = -1;
-    for (int i = 0 ; i < rc; i++) {
-        if (buf[i].pid == pid) {
-            limit = buf[i].limit;
-            break;
+    if (bytes > 0 && bytes <= capacity) {
+        size_t count = (size_t)bytes / sizeof(*entries);
+        for (size_t i = 0; i < count; i++) {
+            if (entries[i].pid == pid) { limit = entries[i].limit; break; }
         }
     }
-    free((void*)buf);
+    free(entries);
     return limit;
 }
 

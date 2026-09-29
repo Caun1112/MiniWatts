@@ -78,6 +78,7 @@ jobs:
           /tmp/charge-validation
           node scripts/test-charge-preferences.js
           python3 scripts/test-charge-launcher.py
+          python3 scripts/test-charge-startup.py
 
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh

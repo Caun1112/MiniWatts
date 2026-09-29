@@ -57,6 +57,7 @@ class IntegrationContracts(unittest.TestCase):
     def test_launch_failure_regression(self):
         bridge = (ROOT / 'MiniWatts/ChargeControl/ChargeControlBridge.m').read_text()
         self.assertNotIn('if (!MWHasChargePrivileges()) return EPERM', bridge)
+        self.assertNotIn('return ENOTCONN', bridge)
         for field in ['persona_configuration', 'posix_spawn', 'exitCode', 'helperOutput', 'launchdOutput']:
             self.assertIn(field, bridge)
         diagnostics = (ROOT / 'MiniWatts/ChargeControl/DiagnosticLog.swift').read_text()

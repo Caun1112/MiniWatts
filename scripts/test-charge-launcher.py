@@ -9,7 +9,20 @@ import tempfile
 source = pathlib.Path('MiniWatts/ChargeControl/ChargeControlBridge.m').read_text()
 source = source.split('// UIWebView is intentional:')[0].replace('#import "ChargeControlBridge.h"', '#import <Foundation/Foundation.h>')
 source += '''
+#import <objc/runtime.h>
+@interface MWTestBundle : NSObject
+- (NSString*)bundlePath;
+- (id)objectForInfoDictionaryKey:(NSString*)key;
+@end
+@implementation MWTestBundle
+- (NSString*)bundlePath { return @"/nonexistent/miniwatts-test"; }
+- (id)objectForInfoDictionaryKey:(NSString*)key { return [key isEqual:@"MWPackageFlavor"] ? @"Rootless-DEB" : nil; }
+@end
 int main(void) { @autoreleasepool {
+    // Reproduce the actual failing package flavor, not a generic macOS bundle.
+    MWTestBundle* bundle = [MWTestBundle new];
+    Method method = class_getClassMethod(NSBundle.class, @selector(mainBundle));
+    method_setImplementation(method, imp_implementationWithBlock(^id(id cls) { return bundle; }));
     int code = MWStartChargeService();
     NSCAssert(code == ENOENT, @"Missing helper must reach lookup, not synthetic permission denial");
     NSDictionary* report = MWChargeLaunchDiagnostics();
@@ -17,7 +30,7 @@ int main(void) { @autoreleasepool {
     NSCAssert([report[@"lastLaunch"][@"errno"] intValue] == ENOENT, @"Wrong launch error");
     NSCAssert(report[@"entitlements"] != nil, @"Missing entitlement diagnostics");
     NSCAssert([report[@"childRunning"] isEqual:@NO], @"Missing helper cannot be running");
-    puts("5 launcher preflight regression checks passed");
+    puts("5 rootless launcher regression checks passed");
 } return 0; }
 '''
 with tempfile.TemporaryDirectory(prefix='miniwatts-launch-test-') as directory:

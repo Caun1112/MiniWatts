@@ -70,25 +70,28 @@ NSDictionary* MWChargeLaunchDiagnostics(void) {
         report[@"helperOutput"] = [[NSString alloc] initWithData:MWLaunchOutput ?: NSData.data encoding:NSUTF8StringEncoding] ?: @"[non-UTF8 output]";
         report[@"childRunning"] = @(MWChildPID > 0);
     }
-    // Rootless launchd output is separate from HTTP diagnostics, so dyld failures
-    // can still be exported when the service never becomes reachable.
-    NSFileHandle* log = [NSFileHandle fileHandleForReadingAtPath:@"/var/jb/var/log/miniwatts-charge-startup.log"];
-    if (log) {
-        @try {
-            unsigned long long length = [log seekToEndOfFile];
-            [log seekToFileOffset:length > 65536 ? length - 65536 : 0];
-            report[@"launchdOutput"] = [[NSString alloc] initWithData:[log readDataToEndOfFile] encoding:NSUTF8StringEncoding] ?: @"[non-UTF8 output]";
-        } @catch (NSException* exception) { report[@"launchdOutput"] = @"unreadable"; }
-        [log closeFile];
+    NSDictionary* paths = @{
+        @"launchdOutput": @"/var/jb/var/log/miniwatts-charge-startup.log",
+        @"installOutput": @"/var/jb/var/log/miniwatts-charge-install.log"
+    };
+    for (NSString* key in paths) {
+        NSFileHandle* log = [NSFileHandle fileHandleForReadingAtPath:paths[key]];
+        NSString* stateKey = [key stringByAppendingString:@"State"];
+        report[stateKey] = [NSFileManager.defaultManager fileExistsAtPath:paths[key]] ? @"unreadable" : @"missing";
+        if (log) {
+            @try {
+                unsigned long long length = [log seekToEndOfFile];
+                [log seekToFileOffset:length > 65536 ? length - 65536 : 0];
+                report[key] = [[NSString alloc] initWithData:[log readDataToEndOfFile] encoding:NSUTF8StringEncoding] ?: @"[non-UTF8 output]";
+                report[stateKey] = length ? @"readable" : @"empty";
+            } @catch (NSException* exception) { report[stateKey] = @"read_failed"; }
+            [log closeFile];
+        }
     }
     return report;
 }
 
 int MWStartChargeService(void) {
-    if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"MWPackageFlavor"] isEqual:@"Rootless-DEB"]) {
-        MWLaunchState(@"launchd_managed", ENOTCONN, 0);
-        return ENOTCONN;
-    }
     @synchronized (MWLaunchLock()) {
         if (MWChildPID > 0 || MWLaunchPending) return EALREADY;
         MWLaunchPending = YES;

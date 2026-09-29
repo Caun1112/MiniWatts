@@ -3,9 +3,16 @@ set -eu
 case "${1:-}" in
     remove|upgrade|deconfigure)
         # Stop first so automatic policy cannot reapply after the reset command.
-        /bin/launchctl bootout system /var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist 2>/dev/null || true
+        ctl=/bin/launchctl
+        for candidate in /var/jb/bin/launchctl /var/jb/usr/bin/launchctl; do
+            if [ -x "$candidate" ]; then ctl=$candidate; break; fi
+        done
+        "$ctl" bootout system /var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist 2>/dev/null || true
         helper=/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon
-        if [ -x "$helper" ]; then "$helper" reset; fi
+        if [ -x "$helper" ]; then
+            "$helper" stop
+            "$helper" reset
+        fi
         if [ "${1:-}" = remove ]; then
             if [ -x /var/jb/usr/bin/uicache ]; then
                 /var/jb/usr/bin/uicache -u /var/jb/Applications/MiniWatts.app
