@@ -16,6 +16,7 @@ static NSObject* MWLaunchLock(void) {
 }
 static NSMutableDictionary* MWLastLaunch;
 static NSMutableData* MWLaunchOutput;
+static NSMutableArray* MWLaunchHistory;
 static pid_t MWChildPID;
 static BOOL MWLaunchPending;
 static void MWLaunchState(NSString* stage, int code, pid_t pid) {
@@ -69,6 +70,7 @@ NSDictionary* MWChargeLaunchDiagnostics(void) {
         report[@"lastLaunch"] = [MWLastLaunch copy] ?: @{@"stage": @"not_attempted"};
         report[@"helperOutput"] = [[NSString alloc] initWithData:MWLaunchOutput ?: NSData.data encoding:NSUTF8StringEncoding] ?: @"[non-UTF8 output]";
         report[@"childRunning"] = @(MWChildPID > 0);
+        report[@"launchHistory"] = [MWLaunchHistory copy] ?: @[];
     }
     NSDictionary* paths = @{
         @"launchdOutput": @"/var/jb/var/log/miniwatts-charge-startup.log",
@@ -95,6 +97,13 @@ int MWStartChargeService(void) {
     @synchronized (MWLaunchLock()) {
         if (MWChildPID > 0 || MWLaunchPending) return EALREADY;
         MWLaunchPending = YES;
+        if (MWLastLaunch) {
+            if (!MWLaunchHistory) MWLaunchHistory = [NSMutableArray new];
+            NSMutableDictionary* previous = [MWLastLaunch mutableCopy];
+            previous[@"output"] = [[NSString alloc] initWithData:MWLaunchOutput ?: NSData.data encoding:NSUTF8StringEncoding] ?: @"[non-UTF8 output]";
+            [MWLaunchHistory addObject:previous];
+            if (MWLaunchHistory.count > 4) [MWLaunchHistory removeObjectAtIndex:0];
+        }
         MWLastLaunch = [NSMutableDictionary new];
         MWLaunchOutput = [NSMutableData new];
     }

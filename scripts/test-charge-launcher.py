@@ -30,7 +30,11 @@ int main(void) { @autoreleasepool {
     NSCAssert([report[@"lastLaunch"][@"errno"] intValue] == ENOENT, @"Wrong launch error");
     NSCAssert(report[@"entitlements"] != nil, @"Missing entitlement diagnostics");
     NSCAssert([report[@"childRunning"] isEqual:@NO], @"Missing helper cannot be running");
-    puts("5 rootless launcher regression checks passed");
+    NSCAssert(MWStartChargeService() == ENOENT, @"Retry should still reach lookup");
+    NSDictionary* retried = MWChargeLaunchDiagnostics();
+    NSCAssert([retried[@"launchHistory"] count] == 1, @"Retry discarded previous launch failure");
+    NSCAssert([retried[@"launchHistory"][0][@"stage"] isEqual:@"helper_lookup"], @"Previous failure stage lost");
+    puts("8 rootless launcher and retry-history checks passed");
 } return 0; }
 '''
 with tempfile.TemporaryDirectory(prefix='miniwatts-launch-test-') as directory:
