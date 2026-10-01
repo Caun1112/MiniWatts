@@ -8,6 +8,7 @@ struct ChargeControlView: View {
             statusPanel
             controlsPanel
             thresholdsPanel
+            inflowPanel
             Panel("完整功能", systemImage: "slider.horizontal.3") {
                 VStack(spacing: 16) {
                     NavigationLink { ChargeControlWebPage(page: "index.html", title: "充电设置") } label: {
@@ -16,14 +17,14 @@ struct ChargeControlView: View {
                     NavigationLink { ChargeControlWebPage(page: "history.html", title: "电池统计") } label: {
                         Label("5 分钟 / 小时 / 天 / 月统计", systemImage: "chart.xyaxis.line")
                     }
-                    Text("包含 SmartBattery、智能停充、禁流、自动限流、Powercuff、峰值性能、通知、SBC / UPS 信息和全部电池数据。")
+                    Text("包含 SmartBattery、智能停充、禁流、Powercuff、峰值性能、通知、SBC / UPS 信息和全部电池数据。")
                         .font(.caption).foregroundStyle(Color.mwMuted)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.disabled(!client.connected)
             Panel("诊断与帮助", systemImage: "stethoscope") {
                 VStack(alignment: .leading, spacing: 14) {
                     NavigationLink { DiagnosticsView() } label: { Label("导出 Bug 日志", systemImage: "square.and.arrow.up") }
-                    Text("服务独立于界面运行；系统重启或终止服务后，需要重新打开 MiniWatts。不要同时启用其他限充工具。部分设备的状态变化可能延迟 120 秒；高温模拟在锁屏时可能失效。")
+                    Text(client.isRootlessPackage ? "服务独立于界面运行，异常退出后会自动恢复。开启“始终开启”后，也会恢复自动充电控制；重启后需等越狱环境重新生效。不要同时启用其他限充工具。部分设备的状态变化可能延迟 120 秒。" : "服务独立于界面运行；系统重启或终止服务后，需要重新打开 MiniWatts。Rootless DEB 版支持“始终开启”。不要同时启用其他限充工具。部分设备的状态变化可能延迟 120 秒。")
                         .font(.caption).foregroundStyle(Color.mwMuted)
                     Text("快捷指令 URL：miniwatts:///charge、miniwatts:///nocharge、miniwatts:///enable、miniwatts:///disable；兼容 cl:///charge/exit。HTTP 接口只监听本机 127.0.0.1:1231。")
                         .font(.caption).foregroundStyle(Color.mwMuted)
@@ -67,21 +68,27 @@ struct ChargeControlView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Toggle("启用自动充电控制", isOn: Binding(get: { client.bool("enable") }, set: { v in Task { await client.set("enable", v) } }))
                     .tint(.mwBattery)
+                    .disabled(!client.canControl)
+                Toggle("始终开启", isOn: Binding(get: { client.bool("always_on") }, set: { v in Task { await client.set("always_on", v) } }))
+                    .tint(.mwBattery)
+                    .disabled(!client.canConfigureAlwaysOn)
+                Text(client.isRootlessPackage ? "开启后会立即启用自动控制，并在后台异常退出或设备重启后自动恢复。重启后须等待越狱环境生效；关闭本项保留当前控制状态，关闭自动控制则同时关闭本项。" : "“始终开启”需要安装 Rootless DEB 版，并保持越狱环境生效。")
+                    .font(.caption).foregroundStyle(Color.mwMuted)
                 Picker("模式", selection: Binding(get: { client.string("mode", fallback: "charge_on_plug") }, set: { v in Task { await client.set("mode", v) } })) {
                     Text("插电即充").tag("charge_on_plug")
                     Text("边缘触发").tag("edge_trigger")
-                }.pickerStyle(.segmented)
+                }.pickerStyle(.segmented).disabled(!client.canControl)
                 Text(client.string("mode") == "edge_trigger" ? "低于下限开始充电，高于上限停止；区间内保持状态，重新插电会按上游策略停充。" : "接入电源且满足阈值条件时充电；达到电量或温度上限时停止。")
                     .font(.caption).foregroundStyle(Color.mwMuted)
                 HStack {
                     Button("立即充电") { Task { await client.command(["api": "set_charge_status", "flag": true]) } }
                     Spacer()
                     Button("停止充电") { Task { await client.command(["api": "set_charge_status", "flag": false]) } }
-                }.buttonStyle(.bordered).tint(.mwAccent)
+                }.buttonStyle(.bordered).tint(.mwAccent).disabled(!client.canControl)
                 Text("手动控制后，启用中的自动策略仍可能在下一次电池事件时改变状态。关闭自动控制会恢复充电。")
                     .font(.caption).foregroundStyle(Color.mwMuted)
             }
-        }.disabled(!client.canControl)
+        }
     }
 
     private var thresholdsPanel: some View {
@@ -91,6 +98,41 @@ struct ChargeControlView: View {
                 threshold("停止充电", key: "charge_above", fallback: 80, range: min(100, client.number("charge_below", fallback: 20) + 1)...100)
             }
         }.disabled(!client.canControl)
+    }
+
+    private var inflowPanel: some View {
+        Panel("充电时自动限流", systemImage: "bolt.badge.clock") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("启用限流", isOn: Binding(get: { client.bool("adv_limit_inflow") }, set: { v in Task { await client.set("adv_limit_inflow", v) } }))
+                    .tint(.mwBattery)
+                    .disabled(!client.canControl || !client.thermalAvailable)
+                if client.bool("adv_limit_inflow") {
+                    Picker("温控等级", selection: Binding(get: { client.string("adv_limit_inflow_mode", fallback: "moderate") }, set: { v in Task { await client.set("adv_limit_inflow_mode", v) } })) {
+                        Text("无").tag("off")
+                        Text("正常").tag("nominal")
+                        Text("轻度").tag("light")
+                        Text("中度").tag("moderate")
+                        Text("重度").tag("heavy")
+                    }.pickerStyle(.menu)
+                        .disabled(!client.canControl || !client.thermalAvailable || client.bool("adv_thermal_mode_lock"))
+                }
+                HStack {
+                    Text("电池电流").mwCaption()
+                    Spacer()
+                    Text(client.batteryCurrentMilliamps.map { String(format: "%.0f mA", $0) } ?? "—")
+                        .mwReadout(size: 22).foregroundStyle(Color.mwBattery)
+                }
+                Text("启用自动充电控制后，充电时按所选温控等级限流，停充时恢复默认等级。读数每 3 秒刷新，以实际电流为准；锁屏时高温模拟可能失效。")
+                    .font(.caption).foregroundStyle(Color.mwMuted)
+                if client.connected && !client.thermalAvailable {
+                    Text("当前设备未提供温控接口，暂不支持自动限流。")
+                        .font(.caption).foregroundStyle(Color.mwLoss)
+                } else if client.bool("adv_thermal_mode_lock") {
+                    Text("温控模式已锁定，自动限流暂不生效。可在完整功能中解除锁定。")
+                        .font(.caption).foregroundStyle(Color.mwLoss)
+                }
+            }
+        }
     }
     private func threshold(_ title: String, key: String, fallback: Double, range: ClosedRange<Double>) -> some View {
         HStack {

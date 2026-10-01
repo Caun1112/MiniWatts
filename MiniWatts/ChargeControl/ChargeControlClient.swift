@@ -21,6 +21,13 @@ final class ChargeControlClient {
 
     var sensorAvailable: Bool { config["sensor_available"] as? Bool == true }
     var canControl: Bool { connected && sensorAvailable && !busy }
+    var isRootlessPackage: Bool { Bundle.main.object(forInfoDictionaryKey: "MWPackageFlavor") as? String == "Rootless-DEB" }
+    var supportsAlwaysOn: Bool { isRootlessPackage && bool("always_on_supported") }
+    var canConfigureAlwaysOn: Bool { connected && supportsAlwaysOn && !busy }
+    var thermalAvailable: Bool { bool("adv_thermal_avail") }
+    var batteryCurrentMilliamps: Double? {
+        (battery["InstantAmperage"] as? NSNumber)?.doubleValue ?? (battery["Amperage"] as? NSNumber)?.doubleValue
+    }
     func bool(_ key: String) -> Bool { config[key] as? Bool ?? false }
     func number(_ key: String, fallback: Double) -> Double { (config[key] as? NSNumber)?.doubleValue ?? fallback }
     func string(_ key: String, fallback: String = "") -> String { config[key] as? String ?? fallback }
@@ -80,7 +87,8 @@ final class ChargeControlClient {
     }
 
     func command(_ payload: [String: Any]) async {
-        guard canControl else { return }
+        let isAlwaysOnSetting = payload["api"] as? String == "set_conf" && payload["key"] as? String == "always_on"
+        guard isAlwaysOnSetting ? canConfigureAlwaysOn : canControl else { return }
         busy = true
         defer { busy = false }
         do {

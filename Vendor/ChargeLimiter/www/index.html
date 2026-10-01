@@ -473,20 +473,6 @@
                 </el-select>
               </el-row>
             </div>
-            <el-divider class="my-0" direction="horizontal"></el-divider>
-            <el-row class="py-2 col-item">
-              <el-label class="submenu">{{$t("adv_limit_inflow")}}</el-label>
-              <el-switch :value="adv_limit_inflow" class="right" @change="set_limit_inflow"></el-switch>
-              <template v-if="adv_limit_inflow">
-                <el-row class="col-item my-1">
-                  <el-label class="submenu">{{$t("adv_thermal_simulate")}}</el-label>
-                  <el-select v-model="adv_limit_inflow_mode" size="mini" class="right" style="width:140px" @change="change_limit_inflow_mode"
-                    :disabled="adv_thermal_mode_lock">
-                    <el-option v-for="i in cuffmods" :key="i.value" :label="i.label" :value="i.value"></el-option>
-                  </el-select>
-                </el-row>
-              </template>
-            </el-row>
           </template>
         </template>
         <el-divider class="my-0" direction="horizontal"></el-divider>
