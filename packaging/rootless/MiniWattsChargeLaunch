@@ -1,0 +1,40 @@
+#!/bin/sh
+# Run as root by the entitled helper. launchd owns the resident control process.
+set -eu
+PATH=/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/sbin:/var/jb/sbin:/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+ctl=/bin/launchctl
+for candidate in /var/jb/bin/launchctl /var/jb/usr/bin/launchctl; do
+    if [ -x "$candidate" ]; then ctl=$candidate; break; fi
+done
+helper=/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon
+plist=/var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist
+job=system/org.zhaohe.MiniWatts.charge
+
+# A successful check identifies MiniWatts and requires a responsive HTTP API.
+# The periodic watchdog is quiet while the service is healthy.
+if "$helper" health; then exit 0; fi
+echo "MiniWatts recovery: $(date -u), launchctl=$ctl"
+"$ctl" enable "$job"
+if "$ctl" bootstrap system "$plist"; then
+    echo 'bootstrap accepted'
+else
+    echo "bootstrap returned $?; trying the registered job"
+fi
+"$ctl" kickstart "$job" || true
+for attempt in 1 2 3 4 5; do
+    if "$helper" health; then echo 'listener_ready=1'; exit 0; fi
+    sleep 1
+done
+
+# KeepAlive handles exits; this also recovers an alive but unresponsive job.
+# Target only our registered launchd job, without relying on a stale PID file.
+echo 'HTTP unavailable; restarting the registered service'
+"$ctl" kickstart -k "$job" || true
+"$ctl" print "$job" || true
+for attempt in 1 2 3 4 5; do
+    if "$helper" health; then echo 'listener_ready=1'; exit 0; fi
+    sleep 1
+done
+echo 'listener_ready=0; recovery failed; export MiniWatts diagnostics'
+exit 1

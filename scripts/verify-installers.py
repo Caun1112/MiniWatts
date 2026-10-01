@@ -38,9 +38,17 @@ check_bundle(stage / 'var/jb/Applications/MiniWatts.app', 'Rootless-DEB')
 launch = plistlib.loads((stage / 'var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist').read_bytes())
 assert launch['UserName'] == 'root'
 assert launch['ProgramArguments'] == ['/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon']
+assert launch['RunAtLoad'] is True and launch['KeepAlive'] is True
+watchdog = plistlib.loads((stage / 'var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.watchdog.plist').read_bytes())
+assert watchdog['UserName'] == 'root'
+assert watchdog['RunAtLoad'] is True and watchdog['StartInterval'] == 30
+assert watchdog['ProgramArguments'] == ['/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon', 'watchdog']
+manager = stage / 'var/jb/Applications/MiniWatts.app/MiniWattsChargeLaunch'
+assert manager.stat().st_mode & 0o111
+assert manager.read_bytes() == pathlib.Path('packaging/rootless/MiniWattsChargeLaunch').read_bytes()
 control = (stage / 'DEBIAN/control').read_text()
 assert 'Architecture: iphoneos-arm64' in control
 assert 'Depends: firmware (>= 17.0)' in control
 for script in ['postinst', 'prerm']:
     assert (stage / 'DEBIAN' / script).stat().st_mode & 0o111
-print('Rootless launchd service, package architecture and lifecycle scripts verified')
+print('Rootless launchd service, recovery watchdog, executable manager and lifecycle scripts verified')

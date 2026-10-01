@@ -1,6 +1,6 @@
 # MiniWatts
 
-> **Beta 2 安装修复**：巨魔 / TrollStore Lite 请用 `MiniWatts-TrollStore.ipa`，Sileo rootless 请用 `MiniWatts-rootless.deb`。完全未签名 IPA 仅作为自行签名的底包。见 [安装与故障修复说明](docs/installers.md)。
+> **Beta 4 始终开启**：rootless DEB 新增后台自动恢复充电控制，无需重新打开 App；自动限流移至阈值下方。Sileo 用户请选择 `MiniWatts-rootless.deb`，安装后在控制页开启“始终开启”。巨魔 / TrollStore Lite 请用 `MiniWatts-TrollStore.ipa`。见 [安装与功能说明](docs/installers.md)。
 
 > **MiniWatts + ChargeLimiter 集成版**：新增完整充电控制、独立后台服务和 Bug 日志导出。
 > 未签名 IPA 在本仓库 [Releases](https://github.com/Caun1112/MiniWatts/releases) 下载。

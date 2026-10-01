@@ -79,6 +79,7 @@ jobs:
           node scripts/test-charge-preferences.js
           python3 scripts/test-charge-launcher.py
           python3 scripts/test-charge-startup.py
+          python3 scripts/test-charge-installers.py
 
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh

@@ -37,8 +37,10 @@ mkdir -p "$STAGE/var/jb/Applications" "$STAGE/var/jb/Library/LaunchDaemons" "$ST
 cp -R "$APP" "$STAGE/var/jb/Applications/"
 DEB_APP="$STAGE/var/jb/Applications/MiniWatts.app"
 /usr/libexec/PlistBuddy -c 'Set :MWPackageFlavor Rootless-DEB' "$DEB_APP/Info.plist"
+cp packaging/rootless/MiniWattsChargeLaunch "$DEB_APP/"
+chmod 0755 "$DEB_APP/MiniWattsChargeLaunch"
 sign_app "$DEB_APP"
-cp packaging/rootless/org.zhaohe.MiniWatts.charge.plist "$STAGE/var/jb/Library/LaunchDaemons/"
+cp packaging/rootless/*.plist "$STAGE/var/jb/Library/LaunchDaemons/"
 cp packaging/rootless/{postinst,prerm} "$STAGE/DEBIAN/"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
 NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
@@ -54,7 +56,7 @@ Depends: firmware (>= 17.0)
 Homepage: https://github.com/Caun1112/MiniWatts
 CONTROL
 chmod 0755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/prerm"
-chmod 0644 "$STAGE/var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist"
+chmod 0644 "$STAGE/var/jb/Library/LaunchDaemons/"*.plist
 command -v dpkg-deb >/dev/null || { echo 'dpkg-deb is required on the Actions runner' >&2; exit 1; }
 dpkg-deb --root-owner-group -Zgzip -b "$STAGE" "$PWD/build/export/MiniWatts-rootless.deb"
 python3 scripts/verify-installers.py "$APP" "$STAGE"

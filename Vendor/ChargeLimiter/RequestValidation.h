@@ -1,6 +1,6 @@
 // MiniWatts integration, 2026. Validate every native, web and Shortcuts request.
 static BOOL validConfig(NSString* key, id value) {
-    NSArray* booleans = @[@"enable", @"floatwnd", @"floatwnd_auto", @"disable_smart_charge", @"enable_temp", @"acc_charge", @"acc_charge_airmode", @"acc_charge_wifi", @"acc_charge_blue", @"acc_charge_bright", @"acc_charge_lpm", @"adv_prefer_smart", @"adv_predictive_inhibit_charge", @"adv_disable_inflow", @"adv_limit_inflow", @"adv_thermal_mode_lock"];
+    NSArray* booleans = @[@"enable", @"always_on", @"floatwnd", @"floatwnd_auto", @"disable_smart_charge", @"enable_temp", @"acc_charge", @"acc_charge_airmode", @"acc_charge_wifi", @"acc_charge_blue", @"acc_charge_bright", @"acc_charge_lpm", @"adv_prefer_smart", @"adv_predictive_inhibit_charge", @"adv_disable_inflow", @"adv_limit_inflow", @"adv_thermal_mode_lock"];
     if ([booleans containsObject:key]) return [value isKindOfClass:NSNumber.class] && ([value isEqual:@0] || [value isEqual:@1]);
     if ([key isEqual:@"temp_mode"]) return [value isEqual:@0] || [value isEqual:@1];
     if ([key isEqual:@"mode"]) return [@[@"charge_on_plug", @"edge_trigger"] containsObject:value];

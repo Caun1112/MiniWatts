@@ -64,6 +64,7 @@ NSDictionary* MWChargeLaunchDiagnostics(void) {
     NSMutableDictionary* report = [@{@"uid": @(getuid()), @"euid": @(geteuid()),
         @"entitlements": MWEntitlementReport(),
         @"packageFlavor": [NSBundle.mainBundle objectForInfoDictionaryKey:@"MWPackageFlavor"] ?: @"unknown",
+        @"recoveryMode": [[NSBundle.mainBundle objectForInfoDictionaryKey:@"MWPackageFlavor"] isEqual:@"Rootless-DEB"] ? @"launchd" : @"direct",
         @"helperPresent": @([NSFileManager.defaultManager fileExistsAtPath:path]),
         @"helperExecutable": @([NSFileManager.defaultManager isExecutableFileAtPath:path])} mutableCopy];
     @synchronized (MWLaunchLock()) {
@@ -148,8 +149,11 @@ int MWStartChargeService(void) {
         if (!result) result = posix_spawn_file_actions_addclose(&actions, output[0]);
         if (!result) result = posix_spawn_file_actions_addclose(&actions, output[1]);
         if (result) break;
-        char* args[] = {(char*)path.fileSystemRepresentation, NULL};
-        char* env[] = {"PATH=/usr/bin:/bin:/usr/sbin:/sbin", NULL};
+        BOOL rootless = [[NSBundle.mainBundle objectForInfoDictionaryKey:@"MWPackageFlavor"] isEqual:@"Rootless-DEB"];
+        // Recovery must return the rootless service to launchd supervision, so it
+        // can restart even after the UI exits. The child is only a manager.
+        char* args[] = {(char*)path.fileSystemRepresentation, rootless ? "ensure-launchd" : NULL, NULL};
+        char* env[] = {"PATH=/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/sbin:/var/jb/sbin:/usr/bin:/bin:/usr/sbin:/sbin", NULL};
         stage = @"posix_spawn";
         result = posix_spawn(&pid, path.fileSystemRepresentation, &actions, &attr, args, env);
     } while (NO);

@@ -32,15 +32,24 @@ for name, entry in files.items():
 root = 'var/jb/Applications/MiniWatts.app/'
 info = plistlib.loads(data.extractfile(files[root+'Info.plist']).read())
 assert info['MWPackageFlavor'] == 'Rootless-DEB'
-for executable in ['MiniWatts', 'MiniWattsChargeDaemon', 'MiniWattsChargeHUD']:
+for executable in ['MiniWatts', 'MiniWattsChargeDaemon', 'MiniWattsChargeHUD', 'MiniWattsChargeLaunch']:
     assert files[root+executable].mode & 0o111
 service = 'var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.plist'
 assert files[service].mode == 0o644
 launch = plistlib.loads(data.extractfile(files[service]).read())
 assert launch['UserName'] == 'root' and launch['RunAtLoad'] is True
+assert launch['KeepAlive'] is True
+assert launch['ProgramArguments'] == ['/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon']
+watchdog_path = 'var/jb/Library/LaunchDaemons/org.zhaohe.MiniWatts.charge.watchdog.plist'
+assert files[watchdog_path].mode == 0o644
+watchdog = plistlib.loads(data.extractfile(files[watchdog_path]).read())
+assert watchdog['UserName'] == 'root' and watchdog['RunAtLoad'] is True
+assert watchdog['StartInterval'] == 30
+assert watchdog['ProgramArguments'] == ['/var/jb/Applications/MiniWatts.app/MiniWattsChargeDaemon', 'watchdog']
+assert data.extractfile(files[root+'MiniWattsChargeLaunch']).read().startswith(b'#!/bin/sh\n')
 control, metadata = read_tar('control.tar')
 fields = control.extractfile(metadata['control']).read().decode()
 assert 'Architecture: iphoneos-arm64' in fields
 for script in ['postinst', 'prerm']:
     assert metadata[script].mode & 0o111
-print('DEB archive: rootless paths, root ownership, root launchd service and executable maintenance scripts verified')
+print('DEB archive: rootless ownership, supervised service, recovery watchdog and executable lifecycle scripts verified')

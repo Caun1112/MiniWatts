@@ -87,6 +87,7 @@ enum {
 
 static NSDictionary* bat_info = nil;
 static BOOL g_enable = NO;
+static BOOL g_policy_charging = NO;
 static BOOL g_enable_floatwnd = NO;
 static BOOL g_use_smart = NO;
 static int g_jbtype = -1;
@@ -94,6 +95,7 @@ static int g_serv_boot = 0;
 
 static IONotificationPortRef gNotifyPort = NULL;
 static io_object_t iopmpsNoti = IO_OBJECT_NULL;
+static io_service_t gBatteryService = IO_OBJECT_NULL;
 static UPSDataSlim* gUPSPS = nil;
 
 NSDictionary* handleReq(NSDictionary* nsreq);
@@ -108,23 +110,40 @@ NSDictionary* validatedRequest(id request);
 @end
 
 
+static BOOL supportsAlwaysOn() {
+    NSString* flavor = NSBundle.mainBundle.infoDictionary[@"MWPackageFlavor"];
+    NSString* path = NSBundle.mainBundle.bundlePath.stringByStandardizingPath;
+    return [flavor isEqualToString:@"Rootless-DEB"] || [path isEqualToString:@"/var/jb/Applications/MiniWatts.app"];
+}
+
+static void invalidateBatteryService() {
+    if (iopmpsNoti != IO_OBJECT_NULL) {
+        IOObjectRelease(iopmpsNoti);
+        iopmpsNoti = IO_OBJECT_NULL;
+    }
+    if (gBatteryService != IO_OBJECT_NULL) {
+        IOObjectRelease(gBatteryService);
+        gBatteryService = IO_OBJECT_NULL;
+    }
+    bat_info = nil;
+}
+
 static io_service_t getIOPMPSServ() {
-    static io_service_t serv = IO_OBJECT_NULL;
-    if (serv == IO_OBJECT_NULL) {
+    if (gBatteryService == IO_OBJECT_NULL) {
         NSNumber* adv_prefer_smart = getlocalKV(@"adv_prefer_smart");
         if (adv_prefer_smart.boolValue) {
-            serv = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSmartBattery")); // >=iPhone8
+            gBatteryService = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSmartBattery")); // >=iPhone8
         }
-        if (serv != IO_OBJECT_NULL) {
+        if (gBatteryService != IO_OBJECT_NULL) {
             g_use_smart = YES;
         } else {// SmartBattery not support, roll back to use IOPS
-            serv = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMPowerSource"));
+            gBatteryService = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMPowerSource"));
             // IOPMPowerSource:AppleARMPMUPowerSource:AppleARMPMUCharger
             //      IOAccessoryTransport:IOAccessoryPowerSource:AppleARMPMUAccessoryPS
             g_use_smart = NO;
         }
     }
-    return serv;
+    return gBatteryService;
 }
 
 static NSDictionary* getBatSlimInfo(NSDictionary* info) {
@@ -143,7 +162,7 @@ static NSDictionary* getBatSlimInfo(NSDictionary* info) {
             filtered_info[@"NominalChargeCapacity"] = info[@"AppleRawMaxCapacity"];
         }
     }
-    if (info[@"AdapterDetails"] != nil) {
+    if ([info[@"AdapterDetails"] isKindOfClass:NSDictionary.class]) {
         NSDictionary* adaptor_info = info[@"AdapterDetails"];
         NSMutableDictionary* filtered_adaptor_info = [NSMutableDictionary dictionary];
         keep = @[@"Current", @"Description", @"IsWireless", @"Manufacturer", @"Name", @"Voltage", @"Watts"];
@@ -163,9 +182,12 @@ static NSDictionary* getBatSlimInfo(NSDictionary* info) {
 }
 
 static int getBatInfoWithServ(io_service_t serv, NSDictionary* __strong* pinfo) {
+    if (serv == IO_OBJECT_NULL) return -1;
     CFMutableDictionaryRef props = nil;
-    IORegistryEntryCreateCFProperties(serv, &props, kCFAllocatorDefault, 0);
-    if (props == nil) {
+    kern_return_t result = IORegistryEntryCreateCFProperties(serv, &props, kCFAllocatorDefault, 0);
+    if (result != 0 || props == nil) {
+        if (props != nil) CFRelease(props);
+        if (serv == gBatteryService) invalidateBatteryService();
         return -2;
     }
     NSMutableDictionary* info = (__bridge_transfer NSMutableDictionary*)props;
@@ -179,8 +201,10 @@ static int getBatInfo(NSDictionary* __strong* pinfo, BOOL slim=YES) {
         return -1;
     }
     CFMutableDictionaryRef props = nil;
-    IORegistryEntryCreateCFProperties(serv, &props, kCFAllocatorDefault, 0);
-    if (props == nil) {
+    kern_return_t result = IORegistryEntryCreateCFProperties(serv, &props, kCFAllocatorDefault, 0);
+    if (result != 0 || props == nil) {
+        if (props != nil) CFRelease(props);
+        invalidateBatteryService();
         return -2;
     }
     NSMutableDictionary* info = (__bridge_transfer NSMutableDictionary*)props;
@@ -220,7 +244,7 @@ static BOOL isAdaptorConnect(NSDictionary* info, NSNumber* disableInflow) { // �
             return NO;
         }
         NSString* PSDesc = AdapterDetails[@"Description"];
-        if (PSDesc == nil || [PSDesc isEqualToString:@"batt"]) {
+        if (![PSDesc isKindOfClass:NSString.class] || [PSDesc isEqualToString:@"batt"]) {
             return NO;
         }
         return YES;
@@ -260,18 +284,22 @@ static int setChargeStatus(BOOL flag) {
     return 0;
 }
 
-static int setBatteryStatus(BOOL flag) {
-    int ret = setChargeStatus(flag);
+static void applyAutomaticThermalMode(BOOL charging) {
     NSNumber* adv_limit_inflow = getlocalKV(@"adv_limit_inflow");
     NSNumber* adv_thermal_mode_lock = getlocalKV(@"adv_thermal_mode_lock");
-    if (!adv_thermal_mode_lock.boolValue && adv_limit_inflow.boolValue) {
-        if (flag) {
-            NSString* mode = getlocalKV(@"adv_limit_inflow_mode");
-            setThermalSimulationMode(mode);
-        } else {
-            NSString* mode = getlocalKV(@"adv_def_thermal_mode");
-            setThermalSimulationMode(mode);
-        }
+    NSString* mode = getlocalKV(@"adv_def_thermal_mode") ?: @"off";
+    if (g_enable && !adv_thermal_mode_lock.boolValue && adv_limit_inflow.boolValue && charging)
+        mode = getlocalKV(@"adv_limit_inflow_mode") ?: @"moderate";
+    // Compare the configured simulation, not the system's measured thermal state.
+    NSUserDefaults* defaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.apple.cltm"];
+    if (![[defaults objectForKey:@"thermalSimulationMode"] isEqual:mode]) setThermalSimulationMode(mode);
+}
+
+static int setBatteryStatus(BOOL flag) {
+    int ret = setChargeStatus(flag);
+    if (ret == 0) {
+        g_policy_charging = flag;
+        applyAutomaticThermalMode(flag);
     }
     return ret;
 }
@@ -457,11 +485,7 @@ static void updateStatistics() {
 }
 
 static void onBatteryEventEnd() {
-    NSNumber* adv_thermal_mode_lock = getlocalKV(@"adv_thermal_mode_lock");
-    if (adv_thermal_mode_lock.boolValue) {
-        NSString* mode = getlocalKV(@"adv_def_thermal_mode");
-        setThermalSimulationMode(mode);
-    }
+    applyAutomaticThermalMode(g_policy_charging);
 }
 
 static float getTempAsC(NSString* key) {
@@ -487,7 +511,11 @@ static void onBatteryEvent(io_service_t serv) {
         // Never interpret missing sensor data as an empty/cold battery.
         if (![bat_info[@"CurrentCapacity"] isKindOfClass:NSNumber.class] ||
             ![bat_info[@"IsCharging"] isKindOfClass:NSNumber.class] ||
-            ([getlocalKV(@"enable_temp") boolValue] && ![bat_info[@"Temperature"] isKindOfClass:NSNumber.class])) {
+            !isfinite([bat_info[@"CurrentCapacity"] doubleValue]) ||
+            [bat_info[@"CurrentCapacity"] doubleValue] < 0 || [bat_info[@"CurrentCapacity"] doubleValue] > 100 ||
+            (gUPSPS == nil && ![getlocalKV(@"adv_disable_inflow") boolValue] && ![bat_info[@"ExternalChargeCapable"] isKindOfClass:NSNumber.class]) ||
+            ([getlocalKV(@"adv_disable_inflow") boolValue] && ![bat_info[@"ExternalConnected"] isKindOfClass:NSNumber.class]) ||
+            ([getlocalKV(@"enable_temp") boolValue] && (![bat_info[@"Temperature"] isKindOfClass:NSNumber.class] || !isfinite([bat_info[@"Temperature"] doubleValue])))) {
             NSFileLog(@"skip automatic control: required battery fields unavailable");
             return;
         }
@@ -509,6 +537,7 @@ static void onBatteryEvent(io_service_t serv) {
         NSNumber* is_inflow_enabled = bat_info[@"ExternalConnected"];
         NSNumber* adv_disable_inflow = getlocalKV(@"adv_disable_inflow");
         BOOL is_adaptor_connected = isAdaptorConnect(bat_info, adv_disable_inflow);
+        g_policy_charging = is_charging && is_adaptor_connected;
         BOOL is_adaptor_new_connected = isAdaptorNewConnect(old_bat_info, bat_info, adv_disable_inflow);
         BOOL is_adaptor_new_disconnected = isAdaptorNewDisconnect(old_bat_info, bat_info, adv_disable_inflow);
         NSNumber* temperature_ = bat_info[@"Temperature"];
@@ -565,9 +594,10 @@ static void onBatteryEvent(io_service_t serv) {
                         NSFileLog(@"enable inflow for low capacity %@ <= %@", capacity, charge_below);
                         setInflowStatus(YES);
                     }
-                    NSFileLog(@"start charging for low capacity %@ <= %@", capacity, charge_below);
-                    setBatteryStatus(YES);
-                    performAction(@"start_charge");
+                    if (!is_charging) {
+                        NSFileLog(@"start charging for low capacity %@ <= %@", capacity, charge_below);
+                        if (setBatteryStatus(YES) == 0) performAction(@"start_charge");
+                    }
                     performAcccharge(YES);
                 }
                 break;
@@ -625,6 +655,7 @@ static void initConf(BOOL reset) {
     }
     BOOL adv_thermal_avail = getThermalData() != nil;
     NSDictionary* def_dic = @{
+        @"always_on": @NO,
         @"charge_below": @20,
         @"charge_above": @80,
         @"enable_temp": @NO,
@@ -690,6 +721,13 @@ static void initConf(BOOL reset) {
     }
     NSNumber* enable = getlocalKV(@"enable");
     g_enable = enable.boolValue;
+    if (supportsAlwaysOn() && [getlocalKV(@"always_on") boolValue]) {
+        // Persist the intended state before hardware is touched. The foreground
+        // app is not part of reboot or crash recovery.
+        if (!g_enable) setlocalKV(@"enable", @YES);
+        g_enable = YES;
+        NSFileLog(@"restored always-on charging control");
+    }
 }
 
 static int showFloatwnd(BOOL flag) {
@@ -728,6 +766,8 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
             kv[@"ver"] = getAppVer() ?: @"unknown";
             kv[@"backend"] = @"MiniWatts.ChargeLimiter";
             kv[@"protocol"] = @1;
+            kv[@"always_on_supported"] = @(supportsAlwaysOn());
+            kv[@"adv_thermal_avail"] = @(getThermalData() != nil);
             kv[@"sensor_available"] = @([bat_info[@"CurrentCapacity"] isKindOfClass:NSNumber.class] && [bat_info[@"IsCharging"] isKindOfClass:NSNumber.class]);
             kv[@"serv_boot"] = @(g_serv_boot);
             kv[@"sys_boot"] = @(get_sys_boottime());
@@ -741,13 +781,22 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         } else {
             return @{
                 @"status": @0,
-                @"data": getlocalKV(key) ?: NSNull.null,
+                @"data": [key isEqualToString:@"always_on_supported"] ? @(supportsAlwaysOn()) : (getlocalKV(key) ?: NSNull.null),
             };
         }
     } else if ([api isEqualToString:@"set_conf"]) {
         NSString* key = nsreq[@"key"];
         id val = nsreq[@"val"];
-        if ([key isEqualToString:@"floatwnd"]) {
+        if ([key isEqualToString:@"always_on"]) {
+            if ([val boolValue] && !supportsAlwaysOn()) return @{@"status": @-22, @"error": @"Always-on requires the rootless DEB launchd service"};
+            if ([val boolValue]) setlocalKV(@"enable", @YES);
+            setlocalKV(key, val);
+        } else if ([key isEqualToString:@"enable"]) {
+            // A deliberate off request wins over automatic recovery, including
+            // web, URL and Shortcuts clients. Persist cancellation first.
+            if (![val boolValue]) setlocalKV(@"always_on", @NO);
+            setlocalKV(key, val);
+        } else if ([key isEqualToString:@"floatwnd"]) {
             int result = showFloatwnd([val boolValue]);
             if (result != 0) return @{@"status": @(result)};
             g_enable_floatwnd = [val boolValue];
@@ -756,8 +805,8 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         } else {
             setlocalKV(key, val);
         }
-        if ([key isEqualToString:@"enable"]) {
-            g_enable = [val boolValue];
+        if ([key isEqualToString:@"enable"] || ([key isEqualToString:@"always_on"] && [val boolValue])) {
+            g_enable = [getlocalKV(@"enable") boolValue];
             if (!g_enable) {
                 performAcccharge(NO);
                 setThermalSimulationMode(getlocalKV(@"adv_def_thermal_mode"));
@@ -784,6 +833,10 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
             });
         } else if ([key isEqualToString:@"adv_def_thermal_mode"]) {
             setThermalSimulationMode(val);
+        } else if ([key isEqualToString:@"adv_limit_inflow"]) {
+            if (![val boolValue] || !g_enable) applyAutomaticThermalMode(NO);
+        } else if ([key isEqualToString:@"adv_thermal_mode_lock"] || [key isEqualToString:@"adv_limit_inflow_mode"]) {
+            if (!g_enable) applyAutomaticThermalMode(NO);
         } else if ([key isEqualToString:@"temp_mode"]) {
             NSArray* vals = nsreq[@"vals"];
             if (vals != nil && vals.count >= 2) {
@@ -804,17 +857,21 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
             @"status": @0,
         };
     } else if ([api isEqualToString:@"get_bat_info"]) {
+        // Foreground current monitoring must read the current sensor value.
+        // Keep the event history intact so polling cannot consume a plug edge.
+        NSDictionary* fresh = nil;
+        getBatInfo(&fresh);
         if (gUPSPS.props != nil) {
             return @{
                 @"status": @0,
-                @"data": bat_info ?: @{},
+                @"data": fresh ?: @{},
                 @"data_ups": gUPSPS.props,
             };
         }
         return @{
             @"status": @0,
             @"enable": @(g_enable), // for floatwnd
-            @"data": bat_info ?: @{},
+            @"data": fresh ?: @{},
         };
     } else if ([api isEqualToString:@"get_statistics"]) {
         NSDictionary* conf = nsreq[@"conf"];
@@ -969,6 +1026,7 @@ static void addUPSBattery(void* refCon, io_iterator_t iterator) {
 
 void detectUPSBattery() {
     @autoreleasepool {
+        if (gNotifyPort == NULL) return;
         if (gUPSPS != nil) { // 存在电池则忽略
             return;
         }
@@ -1058,6 +1116,38 @@ void detectUPSBattery() {
     }
 }
 @end
+
+static void refreshBatteryMonitoring() {
+    if (gNotifyPort == NULL) gNotifyPort = IONotificationPortCreate(kIOMasterPortDefault);
+    CFRunLoopSourceRef source = gNotifyPort ? IONotificationPortGetRunLoopSource(gNotifyPort) : NULL;
+    if (!source) {
+        if (gNotifyPort) IONotificationPortDestroy(gNotifyPort);
+        gNotifyPort = NULL;
+        return;
+    }
+    if (!CFRunLoopContainsSource(CFRunLoopGetCurrent(), source, kCFRunLoopDefaultMode))
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopDefaultMode);
+    if (iopmpsNoti != IO_OBJECT_NULL) return;
+    io_service_t serv = getIOPMPSServ();
+    if (serv == IO_OBJECT_NULL) return;
+    kern_return_t result = IOServiceAddInterestNotification(gNotifyPort, serv, "IOGeneralInterest", [](void* refcon, io_service_t service, uint32_t type, void* args) {
+        @synchronized (Service.inst) {
+            if (type == kIOMessageServiceIsTerminated) {
+                NSFileLog(@"battery service terminated; waiting for rediscovery");
+                invalidateBatteryService();
+                return;
+            }
+            detectUPSBattery();
+            onBatteryEvent(service);
+        }
+    }, nil, &iopmpsNoti);
+    if (result != 0) {
+        if (iopmpsNoti != IO_OBJECT_NULL) IOObjectRelease(iopmpsNoti);
+        iopmpsNoti = IO_OBJECT_NULL;
+        NSFileLog(@"battery notification registration failed: 0x%x; polling will retry", result);
+    }
+    detectUPSBattery();
+}
 
 #include "RequestValidation.h"
 
@@ -1150,27 +1240,17 @@ void detectUPSBattery() {
             NSLog(@"%@ serve failed: %@", log_prefix, serverError);
             exit(0);
         }
-        getBatInfo(&bat_info);
         NSLog(@"MiniWatts startup: HTTP listening, configuring battery notifications");
-        gNotifyPort = IONotificationPortCreate(kIOMasterPortDefault);
-        CFRunLoopSourceRef runSrc = gNotifyPort ? IONotificationPortGetRunLoopSource(gNotifyPort) : NULL;
-        if (runSrc) CFRunLoopAddSource(CFRunLoopGetCurrent(), runSrc, kCFRunLoopDefaultMode);
-        else {
-            NSLog(@"MiniWatts startup: battery notification source unavailable; using 20s polling");
-            [NSTimer scheduledTimerWithTimeInterval:20 repeats:YES block:^(NSTimer* timer) {
+        refreshBatteryMonitoring();
+        // Evaluate immediately with no previous snapshot so an adapter attached
+        // before reboot is treated as connected by either charging mode.
+        onBatteryEvent(getIOPMPSServ());
+        [NSTimer scheduledTimerWithTimeInterval:20 repeats:YES block:^(NSTimer* timer) {
+            @synchronized (Service.inst) {
+                refreshBatteryMonitoring();
                 onBatteryEvent(getIOPMPSServ());
-            }];
-        }
-        io_service_t serv = getIOPMPSServ();
-        if (serv != IO_OBJECT_NULL && runSrc) {
-            IOServiceAddInterestNotification(gNotifyPort, serv, "IOGeneralInterest", [](void* refcon, io_service_t service, uint32_t type, void* args) { // type == kIOPMMessageBatteryStatusHasChanged
-                @synchronized (Service.inst) {
-                    detectUPSBattery(); // 在USB插拔事件中更新
-                    onBatteryEvent(service);
-                }
-            }, nil, &iopmpsNoti);
-            detectUPSBattery();
-        }
+            }
+        }];
         [[NSClassFromString(@"LSApplicationWorkspace") defaultWorkspace] addObserver:self];
         // Optional Bluetooth / low-power / optimized-charge clients initialize
         // lazily when requested. An unavailable XPC service must not block startup.
@@ -1203,10 +1283,47 @@ static int stopChargeService() {
     return ETIMEDOUT;
 }
 
+static BOOL chargeServiceHealthy() {
+    if (!localPortOpen(GSERV_PORT)) return NO;
+    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:1231/"]];
+    request.HTTPMethod = @"POST";
+    request.timeoutInterval = 2;
+    request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"api": @"get_conf"} options:0 error:nil];
+    dispatch_semaphore_t finished = dispatch_semaphore_create(0);
+    __block BOOL healthy = NO;
+    NSURLSessionDataTask* task = [NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData* data, NSURLResponse* response, NSError* error) {
+        if (!error && data && [response isKindOfClass:NSHTTPURLResponse.class] && [(NSHTTPURLResponse*)response statusCode] == 200) {
+            id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if ([json isKindOfClass:NSDictionary.class] && [json[@"status"] isEqual:@0] && [json[@"data"] isKindOfClass:NSDictionary.class]) {
+                NSDictionary* config = json[@"data"];
+                healthy = [config[@"backend"] isEqual:@"MiniWatts.ChargeLimiter"] && [config[@"protocol"] isEqual:@1];
+            }
+        }
+        dispatch_semaphore_signal(finished);
+    }];
+    [task resume];
+    if (dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0) {
+        [task cancel];
+        return NO;
+    }
+    return healthy;
+}
+
+static int ensureRootlessChargeService() {
+    if (!supportsAlwaysOn()) return 69;
+    for (NSString* shell in @[@"/var/jb/bin/sh", @"/var/jb/usr/bin/sh", @"/bin/sh"]) {
+        if ([NSFileManager.defaultManager isExecutableFileAtPath:shell])
+            return spawn(@[shell, @"/var/jb/Applications/MiniWatts.app/MiniWattsChargeLaunch"], nil, nil, nil, 0, nil);
+    }
+    return ENOENT;
+}
+
 int main(int argc, char** argv) { // daemon_main
     @autoreleasepool {
         signal(SIGPIPE, SIG_IGN); // UI may exit while the independent helper still runs.
-        NSLog(@"MiniWatts startup: entered main uid=%d euid=%d", getuid(), geteuid());
+        if (argc == 1) NSLog(@"MiniWatts startup: entered main uid=%d euid=%d", getuid(), geteuid());
         g_jbtype = getJBType();
         if (getuid() != 0) { NSLog(@"MiniWatts charge service requires root"); return 77; }
         if (argc == 1) {
@@ -1229,10 +1346,7 @@ int main(int argc, char** argv) { // daemon_main
                 performAcccharge(NO);
                 setThermalSimulationMode(@"off");
                 resetBatteryStatus();
-                if (iopmpsNoti != IO_OBJECT_NULL) {
-                    IOObjectRelease(iopmpsNoti);
-                    iopmpsNoti = IO_OBJECT_NULL;
-                }
+                invalidateBatteryService();
                 releaseUPSBattery(gUPSPS);
                 if (gNotifyPort != 0) {
                     IONotificationPortDestroy(gNotifyPort);
@@ -1253,7 +1367,13 @@ int main(int argc, char** argv) { // daemon_main
             return 0;
         } else if (argc > 1) {
             if (0 == strcmp(argv[1], "stop")) return stopChargeService();
-            if (0 == strcmp(argv[1], "health")) return localPortOpen(GSERV_PORT) ? 0 : 1;
+            if (0 == strcmp(argv[1], "health")) return chargeServiceHealthy() ? 0 : 1;
+            if (0 == strcmp(argv[1], "ensure-launchd")) return ensureRootlessChargeService();
+            if (0 == strcmp(argv[1], "watchdog")) {
+                if (!supportsAlwaysOn() || ![getlocalKV(@"always_on") boolValue]) return 0;
+                if (chargeServiceHealthy()) return 0;
+                return ensureRootlessChargeService();
+            }
             if (0 == strcmp(argv[1], "reset")) { // 越狱下卸载前重置
                 resetBatteryStatus();
                 setThermalSimulationMode(@"off");
@@ -1281,4 +1401,3 @@ int main(int argc, char** argv) { // daemon_main
         return -1;
     }
 }
-
