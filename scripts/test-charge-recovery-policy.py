@@ -178,6 +178,11 @@ int main() {
         sample[@"CurrentCapacity"] = @90; onBatteryEvent(1);
         check(![sample[@"IsCharging"] boolValue] && chargeWrites == 1, @"restart immediately enforces upper charge threshold");
         resetFixture(); g_enable = YES; sample[@"IsCharging"] = @NO; onBatteryEvent(1);
+        check([sample[@"IsCharging"] boolValue], @"preconnected adapter starts at startup without app");
+        resetFixture(); g_enable = YES; gUPSPS = [TestUPS new];
+        sample[@"IsCharging"] = @NO; sample[@"ExternalChargeCapable"] = @NO; onBatteryEvent(1);
+        check([sample[@"IsCharging"] boolValue], @"preconnected UPS starts at startup without app");
+        resetFixture(); g_enable = YES; sample[@"IsCharging"] = @NO; onBatteryEvent(1);
         check([sample[@"IsCharging"] boolValue], @"startup applies preconnected adapter in plug mode");
         resetFixture(); g_enable = YES; config[@"mode"] = @"edge_trigger"; onBatteryEvent(1);
         check(![sample[@"IsCharging"] boolValue], @"startup applies preconnected adapter in edge mode");
@@ -199,6 +204,8 @@ int main() {
         resetFixture(); g_enable = YES; sample[@"CurrentCapacity"] = @10; sample[@"IsCharging"] = @NO;
         onBatteryEvent(1); onBatteryEvent(1);
         check(chargeWrites == 1 && actions == 1, @"recovery polling does not repeat low-capacity start notifications");
+        resetFixture(); g_enable = YES; thermalMode = @"heavy"; onBatteryEvent(1);
+        check([thermalMode isEqual:@"heavy"], @"inactive limit and lock do not overwrite other thermal settings");
         resetFixture(); g_enable = YES; bat_info = [sample copy];
         set(@"adv_limit_inflow", @YES);
         check([thermalMode isEqual:@"moderate"], @"limit applies immediately during existing charge session");

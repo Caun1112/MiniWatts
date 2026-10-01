@@ -80,6 +80,8 @@ jobs:
           python3 scripts/test-charge-launcher.py
           python3 scripts/test-charge-startup.py
           python3 scripts/test-charge-installers.py
+          python3 scripts/test-charge-recovery-policy.py
+          python3 scripts/test-charge-health.py
 
       - name: Build unsigned ipa
         run: ./scripts/build-ipa.sh

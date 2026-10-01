@@ -17,7 +17,7 @@ PACKAGE = ROOT / 'packaging/rootless'
 LABEL = 'system/org.zhaohe.MiniWatts.charge'
 
 MOCK = r'''
-import json, os, subprocess, sys
+import json, os, sys
 from pathlib import Path
 command = Path(sys.argv[0]).name
 args = sys.argv[1:]
@@ -148,6 +148,8 @@ class RootlessLifecycle(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(self.state()['listening'])
         calls = self.events()
+        self.assertEqual(calls, [['MiniWattsChargeDaemon', 'health']])
+        self.assertEqual(result.stdout + result.stderr, '')
         self.assertFalse(any(call[:2] == ['launchctl', 'bootout'] for call in calls), calls)
         self.assertFalse(any(call[0] == 'launchctl' and '-k' in call for call in calls), calls)
 

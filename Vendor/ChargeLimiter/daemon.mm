@@ -233,6 +233,7 @@ static int setInflowStatus(BOOL flag) {
 }
 
 static BOOL isAdaptorConnect(NSDictionary* info, NSNumber* disableInflow) { // 是否连接电源
+    if (info == nil) return NO;
     if (gUPSPS != nil) { // UPS电源
         // 使用SBC时ExternalConnected/ExternalChargeCapable一直为false
         return YES;
@@ -287,6 +288,7 @@ static int setChargeStatus(BOOL flag) {
 static void applyAutomaticThermalMode(BOOL charging) {
     NSNumber* adv_limit_inflow = getlocalKV(@"adv_limit_inflow");
     NSNumber* adv_thermal_mode_lock = getlocalKV(@"adv_thermal_mode_lock");
+    if (!adv_limit_inflow.boolValue && !adv_thermal_mode_lock.boolValue) return;
     NSString* mode = getlocalKV(@"adv_def_thermal_mode") ?: @"off";
     if (g_enable && !adv_thermal_mode_lock.boolValue && adv_limit_inflow.boolValue && charging)
         mode = getlocalKV(@"adv_limit_inflow_mode") ?: @"moderate";
@@ -834,7 +836,8 @@ NSDictionary* handleReq(NSDictionary* nsreq) {
         } else if ([key isEqualToString:@"adv_def_thermal_mode"]) {
             setThermalSimulationMode(val);
         } else if ([key isEqualToString:@"adv_limit_inflow"]) {
-            if (![val boolValue] || !g_enable) applyAutomaticThermalMode(NO);
+            if (![val boolValue]) setThermalSimulationMode(getlocalKV(@"adv_def_thermal_mode") ?: @"off");
+            else if (!g_enable) applyAutomaticThermalMode(NO);
         } else if ([key isEqualToString:@"adv_thermal_mode_lock"] || [key isEqualToString:@"adv_limit_inflow_mode"]) {
             if (!g_enable) applyAutomaticThermalMode(NO);
         } else if ([key isEqualToString:@"temp_mode"]) {
